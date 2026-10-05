@@ -167,6 +167,11 @@ def build_latent_labels(example):
 
     Prefix/suffix labels are semantic graph/path labels. They are NOT physical
     prompt positions.
+
+    stateK_x/stateK_y/stateK_coord store the EXACT accumulated displacement
+    s_K = f_1 + ... + f_K. These labels are the main Round-6 mechanism target:
+    they let us distinguish "the fact is present" from "the running reasoning
+    state has been composed correctly."
     """
     facts = logical_fact_map(example)
 
@@ -181,7 +186,20 @@ def build_latent_labels(example):
         dx, dy = DIRECTION_VECTORS[facts[k]["direction"]]
         x += dx
         y += dy
+
+        # Exact accumulated reasoning state s_k = f_1 + ... + f_k.
+        #
+        # Keep BOTH:
+        #   prefix{k}: coarse direction class used by earlier experiments
+        #   state{k}_x/state{k}_y/state{k}_coord: exact displacement
+        #
+        # The exact coordinate is deliberately richer than the final answer:
+        # e.g. (1, 0) and (3, 0) are both EAST as an answer, but represent
+        # different accumulated states.
         labels[f"prefix{k}"] = vector_to_answer(x, y)
+        labels[f"state{k}_x"] = int(x)
+        labels[f"state{k}_y"] = int(y)
+        labels[f"state{k}_coord"] = f"{x},{y}"
 
     x = 0
     y = 0
