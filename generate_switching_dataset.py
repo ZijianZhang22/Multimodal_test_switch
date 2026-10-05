@@ -2,16 +2,16 @@
 """
 Generate a controlled 4-hop multimodal reasoning dataset.
 
-Same latent reasoning problem + same 2 Text / 2 Vision evidence budget,
-but different evidence-source schedules:
-    TTVV, VVTT  -> 1 switch
-    TVVT, VTTV  -> 2 switches
-    TVTV, VTVT  -> 3 switches
+Round 2 uses the full 2^4 factorial design:
+every reasoning step can carry its fact as Text (T) or Vision (V), giving
+16 schedules from TTTT through VVVV.
 
-Each latent fact has both a text realization and a diagram realization.
+The latent problem, fact order, answer, and difficulty stay fixed. Only the
+modality carrier of each fact changes.
 """
 
 import argparse
+import itertools
 import json
 import math
 import random
@@ -40,14 +40,40 @@ ANSWER_LABELS = [
     "NORTHEAST", "NORTHWEST", "SOUTHEAST", "SOUTHWEST", "SAME"
 ]
 
-CORE_SCHEDULES = {
-    "TTVV": 1,
-    "VVTT": 1,
-    "TVVT": 2,
-    "VTTV": 2,
-    "TVTV": 3,
-    "VTVT": 3,
-}
+CORE6 = ["TTVV", "VVTT", "TVVT", "VTTV", "TVTV", "VTVT"]
+CORE8 = CORE6 + ["TTTT", "VVVV"]
+ALL16 = ["".join(bits) for bits in itertools.product("TV", repeat=4)]
+
+
+def schedule_metadata(schedule):
+    switch_count = sum(
+        schedule[i] != schedule[i + 1]
+        for i in range(len(schedule) - 1)
+    )
+    tv_transitions = sum(
+        schedule[i] == "T" and schedule[i + 1] == "V"
+        for i in range(len(schedule) - 1)
+    )
+    vt_transitions = sum(
+        schedule[i] == "V" and schedule[i + 1] == "T"
+        for i in range(len(schedule) - 1)
+    )
+    vision_count = schedule.count("V")
+
+    return {
+        "switch_count": switch_count,
+        "tv_transitions": tv_transitions,
+        "vt_transitions": vt_transitions,
+        "vision_count": vision_count,
+        "text_count": len(schedule) - vision_count,
+        "vision_fraction": vision_count / len(schedule),
+        "starts_with": schedule[0],
+        "ends_with": schedule[-1],
+        "V1": int(schedule[0] == "V"),
+        "V2": int(schedule[1] == "V"),
+        "V3": int(schedule[2] == "V"),
+        "V4": int(schedule[3] == "V"),
+    }
 
 
 def vector_to_answer(x, y):
@@ -86,9 +112,8 @@ def load_font(size):
 
 def draw_relation_image(reference, subject, direction, out_path, size=384):
     """
-    Draw only the spatial relation, not a textual sentence.
-
-    If direction == E, for example, subject is drawn to the right of reference.
+    Draw the spatial relation without writing the relation as a sentence.
+    The node labels remain visible so the model can bind the two entities.
     """
     img = Image.new("RGB", (size, size), "white")
     draw = ImageDraw.Draw(img)
@@ -158,15 +183,13 @@ def make_latent_problem(rng, pid):
             "text": f"{subject} is {DIR_WORD[direction]} {reference}.",
         })
 
-    answer = vector_to_answer(x, y)
-
     return {
         "problem_id": f"p{pid:05d}",
         "entities": entities,
         "directions": directions,
         "facts": facts,
         "question": f"Where is {entities[-1]} relative to {entities[0]}?",
-        "answer": answer,
+        "answer": vector_to_answer(x, y),
     }
 
 
@@ -195,17 +218,42 @@ def generate_balanced_latents(n, seed):
     return latents, counts
 
 
+def choose_schedules(schedule_set):
+    if schedule_set == "all16":
+        return ALL16
+    if schedule_set == "core8":
+        return CORE8
+    if schedule_set == "core6":
+        return CORE6
+    raise ValueError(schedule_set)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--out_dir", type=Path, default=Path("data"))
-    parser.add_argument("--n_problems", type=int, default=500)
+    parser.add_argument("--n_problems", type=int, default=100)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--schedule_set",
+        choices=["all16", "core8", "core6"],
+        default="all16",
+        help="Round 2 default is all16. core6/core8 reproduce the earlier pilot.",
+    )
     parser.add_argument(
         "--include_unimodal",
         action="store_true",
-        help="Also add TTTT and VVVV calibration conditions.",
+        help=(
+            "Deprecated compatibility flag. If used with --schedule_set core6, "
+            "it upgrades the set to core8. all16 already contains TTTT/VVVV."
+        ),
     )
     args = parser.parse_args()
+
+    schedule_set = args.schedule_set
+    if args.include_unimodal and schedule_set == "core6":
+        schedule_set = "core8"
+
+    schedules = choose_schedules(schedule_set)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     image_dir = args.out_dir / "images"
@@ -216,17 +264,14 @@ def main():
         args.seed,
     )
 
-    schedules = dict(CORE_SCHEDULES)
-    if args.include_unimodal:
-        schedules["TTTT"] = 0
-        schedules["VVVV"] = 0
-
     latent_path = args.out_dir / "latent_problems.jsonl"
     example_path = args.out_dir / "examples.jsonl"
 
-    with latent_path.open("w", encoding="utf-8") as latent_file,          example_path.open("w", encoding="utf-8") as example_file:
+    with latent_path.open("w", encoding="utf-8") as latent_file, \
+         example_path.open("w", encoding="utf-8") as example_file:
 
         for problem in latents:
+            # Render each fact once and reuse it across all 16 schedules.
             for fact in problem["facts"]:
                 image_rel = (
                     Path("images")
@@ -246,9 +291,10 @@ def main():
                 json.dumps(problem, ensure_ascii=False) + "\n"
             )
 
-            for schedule, switch_count in schedules.items():
-                facts = []
+            for schedule in schedules:
+                meta = schedule_metadata(schedule)
 
+                facts = []
                 for i, fact in enumerate(problem["facts"]):
                     facts.append({
                         **fact,
@@ -259,10 +305,10 @@ def main():
                     "example_id": f"{problem['problem_id']}_{schedule}",
                     "problem_id": problem["problem_id"],
                     "schedule": schedule,
-                    "switch_count": switch_count,
+                    **meta,
                     "modality_budget": {
-                        "text_facts": schedule.count("T"),
-                        "vision_facts": schedule.count("V"),
+                        "text_facts": meta["text_count"],
+                        "vision_facts": meta["vision_count"],
                     },
                     "facts": facts,
                     "question": problem["question"],
@@ -273,6 +319,8 @@ def main():
                     json.dumps(example, ensure_ascii=False) + "\n"
                 )
 
+    print(f"Schedule set: {schedule_set}")
+    print(f"Schedules ({len(schedules)}): {', '.join(schedules)}")
     print(f"Generated {len(latents)} latent problems.")
     print(f"Generated {len(latents) * len(schedules)} examples.")
     print("Answer counts:", dict(answer_counts))
