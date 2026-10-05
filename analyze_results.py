@@ -307,45 +307,66 @@ def main():
         aggfunc="first",
     )
 
+    # True sequence reversals. Each pair preserves the number of visual facts.
     reversal_pairs = [
-        ("TTVV", "VVTT"),
-        ("TVVT", "VTTV"),
-        ("TVTV", "VTVT"),
         ("TTTV", "VTTT"),
+        ("TTVT", "TVTT"),
+        ("TTVV", "VVTT"),
+        ("TVTV", "VTVT"),
         ("TVVV", "VVVT"),
-        ("TTVT", "VTVT"),
-        ("TVTT", "VTTV"),
+        ("VTVV", "VVTV"),
     ]
 
-    reversal_rows = []
-    for a, b in reversal_pairs:
-        if a not in pivot.columns or b not in pivot.columns:
-            continue
+    def paired_test_table(pairs):
+        rows = []
+        for a, b in pairs:
+            if a not in pivot.columns or b not in pivot.columns:
+                continue
 
-        matched = pivot[[a, b]].dropna()
-        n01, n10, p_value = mcnemar_exact(
-            matched[a],
-            matched[b],
-        )
+            matched = pivot[[a, b]].dropna()
+            n01, n10, p_value = mcnemar_exact(
+                matched[a],
+                matched[b],
+            )
 
-        reversal_rows.append({
-            "schedule_a": a,
-            "schedule_b": b,
-            "accuracy_a": matched[a].mean(),
-            "accuracy_b": matched[b].mean(),
-            "a_minus_b": matched[a].mean() - matched[b].mean(),
-            "a_wrong_b_right": n01,
-            "a_right_b_wrong": n10,
-            "mcnemar_p": p_value,
-            "n": len(matched),
-        })
+            rows.append({
+                "schedule_a": a,
+                "schedule_b": b,
+                "accuracy_a": matched[a].mean(),
+                "accuracy_b": matched[b].mean(),
+                "a_minus_b": matched[a].mean() - matched[b].mean(),
+                "a_wrong_b_right": n01,
+                "a_right_b_wrong": n10,
+                "mcnemar_p": p_value,
+                "n": len(matched),
+            })
+        return pd.DataFrame(rows)
 
-    reversal_df = pd.DataFrame(reversal_rows)
+    reversal_df = paired_test_table(reversal_pairs)
     reversal_df.to_csv(args.out_dir / "reversal_pair_tests.csv", index=False)
 
-    print("\n=== Reversal-pair tests ===")
+    print("\n=== True reversal-pair tests ===")
     if len(reversal_df):
         print(reversal_df.to_string(index=False))
+
+    # Bitwise modality complements: every T is swapped with V and vice versa.
+    # These are a different contrast from sequence reversal and are reported separately.
+    complement_pairs = [
+        ("TTTT", "VVVV"),
+        ("TTTV", "VVVT"),
+        ("TTVT", "VVTV"),
+        ("TTVV", "VVTT"),
+        ("TVTT", "VTVV"),
+        ("TVTV", "VTVT"),
+        ("TVVT", "VTTV"),
+        ("TVVV", "VTTT"),
+    ]
+    complement_df = paired_test_table(complement_pairs)
+    complement_df.to_csv(args.out_dir / "complement_pair_tests.csv", index=False)
+
+    print("\n=== Modality-complement pair tests ===")
+    if len(complement_df):
+        print(complement_df.to_string(index=False))
 
     # 6) Main clustered logistic model
     try:
