@@ -238,3 +238,72 @@ If fact-level patching and probes agree on a layer window:
 2. identify important heads / MLP blocks by ablation
 3. test small representation-alignment or routing interventions
 4. validate on another VLM and a second reasoning domain
+
+
+## Round 6 update: from fact availability to computation utilization
+
+Round-5 results weakened the hypothesis that late-Visual failures are caused by
+loss of the target fact itself.
+
+Current evidence suggests:
+
+- target fact semantics remain strongly decodable
+- the target fact can remain present at the final prompt state
+- a local matched fact-boundary patch does not selectively rescue the error
+- therefore the failure may be distributed across the relational computation
+  rather than stored in one local fact representation
+
+### Revised mechanism question
+
+> Does the model know the late visual fact but fail to incorporate it into the
+> accumulated reasoning state?
+
+The new latent-state probes explicitly decode:
+
+\`\`\`text
+s1 = f1
+s2 = f1 + f2
+s3 = f1 + f2 + f3
+s4 = f1 + f2 + f3 + f4
+\`\`\`
+
+using exact \`x/y\` coordinates rather than only the final direction class.
+
+### Main diagnostic signatures
+
+**State-update / composition failure**
+
+- target fact direction remains decodable
+- previous accumulated state remains decodable
+- the newly updated state \`s_k\` degrades specifically when logical role \`k\`
+  is Visual
+- failure signal appears in approximately the same mid/late layer range
+
+**Decision/readout failure**
+
+- target fact remains decodable
+- exact \`s_k\` also remains strongly decodable
+- generated answer is nevertheless wrong
+
+**Static-difficulty confound**
+
+A raw outcome probe may predict failure because some latent problems are simply
+harder.  Round 6 therefore also probes the paired representational difference:
+
+\`delta_h = h_visual - h_text\`
+
+for the exact same latent problem and presentation order.  If \`delta_h\`
+predicts success/failure, that is stronger evidence that the failure signal is
+modality-induced rather than merely problem difficulty.
+
+### Immediate decision rule after Round 6
+
+1. If late-Visual \`s4\` decoding collapses while \`f4\` remains strong:
+   prioritize distributed composition/state-update interventions.
+2. If \`s4\` remains strong but output accuracy is low:
+   prioritize answer readout / late decision dynamics.
+3. If paired \`V-T\` deltas strongly predict failure in a narrow layer window:
+   localize Attention-vs-MLP contributions inside that window.
+4. Do not interpret 100% modality-source decoding as proof of failed semantic
+   alignment by itself; low-level token-count/position differences can make
+   Text vs Vision trivially separable.
