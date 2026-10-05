@@ -7,10 +7,10 @@ layers:
   1) the hidden state at the END OF THE TARGET FACT
   2) the hidden state at the FINAL PROMPT TOKEN
 
-This supports three mechanistic questions:
+This supports four mechanistic questions:
   - Fact encoding: is the semantic direction decodable at the fact boundary?
-  - State integration: is the fact / final answer decodable from the global
-    final-prompt state?
+  - Intermediate-state composition: are the exact accumulated states
+    s_1, s_2, s_3, s_4 = cumulative (x,y) displacements decodable?
   - Modality persistence: can a probe still tell Text vs Vision at each layer?
   - Failure prediction: can internal states predict whether the Visual run
     succeeds or fails?
@@ -174,7 +174,7 @@ def main():
     parser.add_argument(
         "--layers",
         default="0,8,16,20,24,28,32,35",
-        help='Layer spec, e.g. "20:32", "20:32:2", "0,8,16,24,32,35", or "all".',
+        help='Layer spec, e.g. "20:32", "20:32:2", "0,8,16,24,28,32,35", or "all".',
     )
     args = parser.parse_args()
 
@@ -263,6 +263,24 @@ def main():
                     "fact_direction": labels[f"fact{role}"],
                     "prefix_state": labels[f"prefix{role}"],
                     "suffix_state": labels[f"suffix{role}"],
+
+                    # Exact intermediate reasoning states s_1 ... s_4.
+                    # Store every prefix coordinate on every record so the
+                    # downstream probe can ask whether the FINAL prompt state
+                    # still contains each intermediate computation.
+                    "state1_x": labels["state1_x"],
+                    "state1_y": labels["state1_y"],
+                    "state1_coord": labels["state1_coord"],
+                    "state2_x": labels["state2_x"],
+                    "state2_y": labels["state2_y"],
+                    "state2_coord": labels["state2_coord"],
+                    "state3_x": labels["state3_x"],
+                    "state3_y": labels["state3_y"],
+                    "state3_coord": labels["state3_coord"],
+                    "state4_x": labels["state4_x"],
+                    "state4_y": labels["state4_y"],
+                    "state4_coord": labels["state4_coord"],
+
                     "answer": labels["answer"],
                     "input_tokens": token_count,
                 }
@@ -291,7 +309,9 @@ def main():
         "records": records,
         "notes": (
             "target_boundary = residual stream at end of target logical fact; "
-            "final_prompt = residual stream at final prompt token before generation."
+            "final_prompt = residual stream at final prompt token before generation; "
+            "stateK_x/stateK_y/stateK_coord = exact cumulative reasoning state "
+            "s_K = f_1 + ... + f_K."
         ),
     }
     torch.save(payload, args.out)
