@@ -183,3 +183,89 @@ python analyze_results.py \
   --results results16/qwen3vl_results.jsonl \
   --out_dir analysis16
 \`\`\`
+
+
+---
+
+# Round 5: Internal Mechanism Diagnostics
+
+Behavioral controls now motivate direct internal-state tests. The current
+mechanism hypothesis is:
+
+> Visual facts are perceived correctly, but late logical-role evidence may be
+> less successfully written into / integrated with the evolving reasoning
+> state.
+
+The repo now includes:
+
+- \`mechanism_utils.py\` — token-boundary and latent-label helpers
+- \`extract_internal_probe_states.py\` — collect matched Text/Vision hidden states
+- \`train_internal_probes.py\` — grouped linear probes
+- \`run_fact_level_patching.py\` — local fact-boundary causal patching
+- \`analyze_fact_level_patching.py\` — rescue-rate + matched-control analysis
+- \`run_internal_mechanism_suite.sh\` — run the full internal suite
+
+## What the probes test
+
+At the **target fact boundary**:
+
+- can we decode the semantic fact direction?
+- can we decode whether the carrier was Text or Vision?
+- can we predict whether the Visual run will eventually succeed or fail?
+
+At the **final prompt state**:
+
+- is the target fact still decodable?
+- is the final answer decodable?
+- does modality identity persist?
+- when does the hidden state begin to predict failure?
+
+All probe train/test splits are grouped by \`problem_id\` to avoid leakage from
+matched variants of the same latent problem.
+
+## What fact-level patching tests
+
+For a failing single-Visual run, patch only the residual state at the end of the
+target visual fact. Compare four donors:
+
+1. \`matched_fact\` — same problem / same logical fact / all-Text baseline
+2. \`same_example_other_fact\` — same problem but wrong logical fact
+3. \`unrelated_same_answer\` — different problem with the same answer
+4. \`unrelated_other_answer\` — different problem and different answer
+
+The desired causal signature is:
+
+\`matched_fact rescue >> controls\`
+
+especially for late logical roles in the mid/late decoder window.
+
+## Run everything
+
+\`\`\`bash
+cd /workspace/Multimodal_test_switch
+git pull
+pip install -r requirements.txt
+chmod +x run_internal_mechanism_suite.sh
+./run_internal_mechanism_suite.sh
+\`\`\`
+
+Main outputs:
+
+\`\`\`text
+analysis_probes/probe_results.csv
+analysis_probes/best_probe_layer_summary.csv
+
+analysis_fact_patching/rescue_by_role_layer_control.csv
+analysis_fact_patching/best_layer_by_role_control.csv
+analysis_fact_patching/matched_vs_controls_paired_tests.csv
+\`\`\`
+
+Recommended interpretation:
+
+- local fact-direction probe high, but final-state fact/answer probe drops for
+  late Visual failures -> integration / state-update bottleneck
+- modality probe stays high late -> incomplete modality-invariant alignment
+- Visual-failure probe becomes predictive in a specific layer range -> candidate
+  failure-formation window
+- matched fact patch rescues much more than controls -> fact-specific causal
+  evidence for an integration bottleneck
