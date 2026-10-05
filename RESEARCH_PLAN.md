@@ -174,3 +174,67 @@ A possible title:
 
 **When Should Evidence Be Visual? Disentangling Reasoning Role and Presentation
 Position in Multimodal Multi-Step Reasoning**
+
+
+## Round 4/5 update: internal mechanism localization
+
+Round 3 supported the role-dependent effect and the perception control reached
+100% for both Text and Vision. Coarse final-prompt-token patching then showed a
+mid/late rescue signal, with Role 4 showing a narrower window around layers
+24–28. Global Text/Vision cosine similarity stayed high, so the current working
+hypothesis is not global representation collapse.
+
+### Current mechanism candidates
+
+1. **Fact encoding failure**
+   - the visual relation is perceived behaviorally, but its semantic direction
+     is not cleanly represented inside the language-model residual stream.
+
+2. **State-update / integration bottleneck**
+   - the visual fact is encoded, but is not successfully merged into the
+     accumulated reasoning state, especially for late logical roles.
+
+3. **Late decision/readout bottleneck**
+   - the fact and integrated state are both present, but the final answer
+     readout becomes incorrect later.
+
+4. **Persistent modality-specific representation**
+   - semantic information is present, but the model retains a strong
+     Text-vs-Vision signature instead of reaching a sufficiently
+     modality-invariant state.
+
+### Internal probes
+
+Use linear probes at two sites:
+
+- target-fact boundary: decode fact direction / source modality / future outcome
+- final-prompt state: decode target fact / answer / source modality / outcome
+
+A useful signature for an integration bottleneck is:
+
+- fact direction remains highly decodable at the local boundary
+- final-state fact or answer decodability degrades specifically for late Visual
+  failures
+- failure becomes linearly predictable in the same layer range highlighted by
+  causal patching
+
+### Fact-level causal patching
+
+Patch only the target fact-boundary residual state, rather than the entire final
+prompt state. Compare the matched Text fact against same-example and unrelated
+controls.
+
+Strong causal evidence requires:
+
+\`matched same-fact rescue > other-fact / unrelated controls\`
+
+A dense scan of layers 20–32 is the current priority.
+
+### Next escalation only if the signal survives
+
+If fact-level patching and probes agree on a layer window:
+
+1. separate Attention vs MLP contributions inside that window
+2. identify important heads / MLP blocks by ablation
+3. test small representation-alignment or routing interventions
+4. validate on another VLM and a second reasoning domain
