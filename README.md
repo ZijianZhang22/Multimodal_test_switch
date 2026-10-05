@@ -1,64 +1,125 @@
 # Multimodal Test Switch
 
-Pilot code for a controlled **cross-modal evidence switching** experiment.
+Controlled pilot for studying **where modality matters inside a multi-hop reasoning chain**.
 
-## Question
+## Round 1 result
 
-Holding the latent 4-hop reasoning problem and the **2 Text + 2 Vision evidence budget**
-fixed, does increasing the number of V↔T evidence-source transitions reduce reasoning accuracy?
+The first 100-problem pilot did **not** show a monotonic switching-cost effect.
+However, it showed a large order asymmetry, especially:
 
-Core schedules:
+- \`TTVV\`: 22%
+- \`VVTT\`: 40%
 
-- `TTVV`, `VVTT`: 1 switch
-- `TVVT`, `VTTV`: 2 switches
-- `TVTV`, `VTVT`: 3 switches
+Because both conditions use exactly 2 text facts, 2 visual facts, and 1 switch, the
+next question is whether the difference is caused by:
 
-The same latent facts are reused across all six variants of each problem.
+- evidence position,
+- transition direction,
+- visual/text difficulty,
+- start/end modality,
+- or switching itself.
 
-## Install
+## Round 2: full 16-schedule factorial design
 
-```bash
+For each 4-hop latent problem, each fact can independently be carried by Text (T)
+or Vision (V). This gives all \(2^4 = 16\) schedules:
+
+\`\`\`text
+TTTT TTTV TTVT TTVV
+TVTT TVTV TVVT TVVV
+VTTT VTTV VTVT VTVV
+VVTT VVTV VVVT VVVV
+\`\`\`
+
+The latent facts, order, question, answer, and task difficulty are unchanged.
+
+## Install / update
+
+On RunPod:
+
+\`\`\`bash
+cd /workspace/Multimodal_test_switch
+git pull
 pip install -r requirements.txt
-```
+\`\`\`
 
-## Generate data
+## Generate Round-2 data
 
-```bash
+This now defaults to all 16 schedules:
+
+\`\`\`bash
 python generate_switching_dataset.py \
-  --out_dir data \
+  --out_dir data16 \
+  --n_problems 100 \
+  --seed 42
+\`\`\`
+
+Expected output:
+
+\`\`\`text
+Generated 100 latent problems.
+Generated 1600 examples.
+\`\`\`
+
+To reproduce the old pilot instead:
+
+\`\`\`bash
+python generate_switching_dataset.py \
+  --out_dir data_old \
   --n_problems 100 \
   --seed 42 \
-  --include_unimodal
-```
+  --schedule_set core8
+\`\`\`
 
-## Smoke-test Qwen3-VL
+## Smoke test
 
-```bash
+\`\`\`bash
 python run_qwen3vl.py \
-  --data data/examples.jsonl \
-  --out results/smoke.jsonl \
-  --limit 30
-```
+  --data data16/examples.jsonl \
+  --out results16/smoke.jsonl \
+  --limit 16
+\`\`\`
 
-## Full run
+## Full Round-2 run
 
-```bash
+\`\`\`bash
 python run_qwen3vl.py \
-  --data data/examples.jsonl \
-  --out results/qwen3vl_results.jsonl
-```
+  --data data16/examples.jsonl \
+  --out results16/qwen3vl_results.jsonl
+\`\`\`
 
 ## Analyze
 
-```bash
+\`\`\`bash
 python analyze_results.py \
-  --results results/qwen3vl_results.jsonl \
-  --out_dir analysis
-```
+  --results results16/qwen3vl_results.jsonl \
+  --out_dir analysis16
+\`\`\`
 
-Main outputs:
-- accuracy by schedule
+The analysis now reports:
+
+- accuracy for all 16 schedules
 - accuracy by switch count
-- paired 1-switch vs 3-switch difference
-- exact McNemar comparisons
-- accuracy-vs-switches plot
+- accuracy by number of visual facts
+- start-modality and end-modality effects
+- paired visual-vs-text effects at reasoning steps 1, 2, 3, and 4
+- reversal-pair McNemar tests
+- clustered logistic regression:
+  \`correct ~ V1 + V2 + V3 + V4 + switch_count\`
+
+The key scientific question is now:
+
+> After controlling for which reasoning positions are visual, does switch count
+> still matter? Or is performance mainly determined by *where* visual evidence
+> appears in the reasoning chain?
+
+## Recommended interpretation
+
+Do **not** treat a simple Image-first/Text-first difference as the final finding.
+The useful result would be something more specific, for example:
+
+- visual evidence helps at early steps but hurts at late steps,
+- T→V transitions are harder than V→T,
+- or switch count becomes negligible after controlling for step position.
+
+Those findings are more informative than a generic "order matters" result.
