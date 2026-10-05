@@ -269,3 +269,130 @@ Recommended interpretation:
   failure-formation window
 - matched fact patch rescues much more than controls -> fact-specific causal
   evidence for an integration bottleneck
+
+
+---
+
+# Round 6: Exact Intermediate-State Probes
+
+Round 5 changed the mechanism hypothesis.
+
+Observed so far:
+
+- single-fact Text/Vision perception is essentially perfect
+- target fact direction remains strongly linearly decodable
+- the final prompt state can still retain the target fact
+- local fact-boundary patching does **not** selectively rescue errors
+- coarse global final-state patching can rescue some failures
+
+Therefore the current priority is to distinguish:
+
+1. **relational composition / state-update failure**
+2. **downstream decision / readout failure**
+
+## What changed in Round 6
+
+### 1. Exact accumulated reasoning-state labels
+
+For every latent problem, the code now stores:
+
+\`\`\`text
+s1 = f1
+s2 = f1 + f2
+s3 = f1 + f2 + f3
+s4 = f1 + f2 + f3 + f4
+\`\`\`
+
+Each state is represented by its exact displacement:
+
+\`\`\`text
+stateK_x
+stateK_y
+stateK_coord
+\`\`\`
+
+This is richer than the final direction answer. For example, \`(1,0)\` and
+\`(3,0)\` are both EAST as an answer, but they are different internal reasoning
+states.
+
+### 2. Exact-state probes
+
+\`train_internal_probes.py\` now probes, layer by layer:
+
+- \`state1_x/state1_y\`
+- \`state2_x/state2_y\`
+- \`state3_x/state3_y\`
+- \`state4_x/state4_y\`
+
+at the final prompt state.
+
+The most important diagnostic is the target-role state:
+
+- Role 1 visual run -> inspect \`s1\`
+- Role 2 visual run -> inspect \`s2\`
+- Role 3 visual run -> inspect \`s3\`
+- Role 4 visual run -> inspect \`s4\`
+
+If the target visual fact is decodable but the corresponding accumulated state
+degrades, that supports a **state-update / relational-composition failure**.
+
+If the exact accumulated state remains highly decodable but the generated
+answer is wrong, that shifts evidence toward a **decision/readout failure**.
+
+### 3. Paired V-minus-T failure probe
+
+The outcome probe now also uses:
+
+\`\`\`text
+delta_h = h_visual - h_text
+\`\`\`
+
+for the exact matched latent problem and presentation order.
+
+This control is important because a raw Visual-only outcome probe can partially
+learn static problem difficulty.  The paired delta asks whether the
+**modality-induced representational change itself** predicts failure.
+
+## Run Round 6
+
+\`\`\`bash
+cd /workspace/Multimodal_test_switch
+git pull
+pip install -r requirements.txt
+
+python extract_internal_probe_states.py \
+  --data data_role_position/role_position_examples.jsonl \
+  --results results_role_position/qwen3vl_role_position_full.jsonl \
+  --out probe_data/internal_probe_states_round6.pt \
+  --roles 1,2,3,4 \
+  --max_pairs_per_role_group 40 \
+  --layers 0,8,16,20,24,28,32,35
+
+python train_internal_probes.py \
+  --states probe_data/internal_probe_states_round6.pt \
+  --out_dir analysis_probes_round6
+\`\`\`
+
+Or run the whole mechanism suite:
+
+\`\`\`bash
+chmod +x run_internal_mechanism_suite.sh
+./run_internal_mechanism_suite.sh
+\`\`\`
+
+## New Round-6 outputs
+
+\`\`\`text
+analysis_probes_round6/probe_results_round6.csv
+analysis_probes_round6/best_probe_layer_summary_round6.csv
+analysis_probes_round6/target_role_state_probe_curves.csv
+analysis_probes_round6/outcome_probe_raw_vs_delta.csv
+analysis_probes_round6/probe_*.png
+\`\`\`
+
+The two most important files are:
+
+\`\`\`text
+target_role_state_probe_curves.csv
+outcome_probe_raw_vs_delta.csv
+\`\`\`
