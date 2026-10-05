@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Run the switching-cost pilot with Qwen3-VL-8B-Instruct.
+Run Qwen3-VL on the original schedule experiment, Round-3 role/position data,
+or the single-fact perception control.
+
+The runner preserves experiment metadata in the result JSONL so the dedicated
+analysis scripts can operate without re-reading the source dataset.
 """
 
 import argparse
@@ -22,49 +26,71 @@ LABELS = [
 
 def parse_label(text):
     normalized = text.upper().strip()
-
     for label in LABELS:
         if re.search(rf"\b{re.escape(label)}\b", normalized):
             return label
-
     return None
 
 
+def add_fact_content(content, fact, data_dir, display_index):
+    if fact["source"] == "T":
+        content.append({
+            "type": "text",
+            "text": f"\nEvidence {display_index}: {fact['text']}",
+        })
+    else:
+        image_path = (data_dir / fact["image"]).resolve()
+        content.append({
+            "type": "text",
+            "text": f"\nEvidence {display_index}:",
+        })
+        content.append({
+            "type": "image",
+            "image": str(image_path),
+        })
+
+
 def build_messages(example, data_dir):
-    content = [
-        {
+    task_type = example.get("task_type", "chain")
+
+    if task_type == "perception":
+        content = [{
             "type": "text",
             "text": (
-                "You will receive four pieces of evidence in order. "
-                "Some evidence is written as text and some is shown as a diagram. "
-                "Each diagram shows only a spatial relation between two labeled nodes. "
-                "Use all four facts to answer the final question.\n\n"
+                "You will receive one spatial relation as either text or a diagram. "
+                "Read the relation and answer the question.\n\n"
                 "Answer with exactly ONE label from: "
-                "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
-                "SOUTHEAST, SOUTHWEST, SAME."
+                "NORTH, SOUTH, EAST, WEST."
             ),
-        }
-    ]
+        }]
 
-    for fact in example["facts"]:
-        step = fact["step"]
+        fact = example["facts"][0]
+        add_fact_content(content, fact, data_dir, display_index=1)
+        content.append({
+            "type": "text",
+            "text": f"\nQuestion: {example['question']}",
+        })
+        return [{"role": "user", "content": content}]
 
-        if fact["source"] == "T":
-            content.append({
-                "type": "text",
-                "text": f"\nEvidence {step}: {fact['text']}",
-            })
-        else:
-            image_path = (data_dir / fact["image"]).resolve()
+    # Chain task: works for both the original schedule dataset and Round 3.
+    content = [{
+        "type": "text",
+        "text": (
+            "You will receive four pieces of evidence. "
+            "Some evidence is written as text and some is shown as a diagram. "
+            "Each diagram shows only a spatial relation between two labeled nodes. "
+            "The evidence items may not be presented in reasoning-chain order. "
+            "Use the entity labels and all relevant facts to solve the final question.\n\n"
+            "Answer with exactly ONE label from: "
+            "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
+            "SOUTHEAST, SOUTHWEST, SAME."
+        ),
+    }]
 
-            content.append({
-                "type": "text",
-                "text": f"\nEvidence {step}:",
-            })
-            content.append({
-                "type": "image",
-                "image": str(image_path),
-            })
+    for display_index, fact in enumerate(example["facts"], start=1):
+        # IMPORTANT: use physical presentation index here, not logical-step ID.
+        # Otherwise shuffled Round-3 examples would leak the latent reasoning order.
+        add_fact_content(content, fact, data_dir, display_index=display_index)
 
     content.append({
         "type": "text",
@@ -79,6 +105,19 @@ def load_jsonl(path):
         for line in file:
             if line.strip():
                 yield json.loads(line)
+
+
+def copy_metadata(example):
+    skip = {
+        "facts",
+        "question",
+        "answer",
+    }
+    metadata = {}
+    for key, value in example.items():
+        if key not in skip:
+            metadata[key] = value
+    return metadata
 
 
 def main():
@@ -101,7 +140,7 @@ def main():
         "--limit",
         type=int,
         default=None,
-        help="Useful for a quick smoke test, e.g. --limit 30",
+        help="Useful for a quick smoke test.",
     )
     parser.add_argument("--max_new_tokens", type=int, default=16)
     args = parser.parse_args()
@@ -138,12 +177,10 @@ def main():
             )
 
             inputs.pop("token_type_ids", None)
-
             input_token_count = int(inputs["input_ids"].shape[-1])
 
             n_text_tokens = None
             n_visual_tokens = None
-
             if "mm_token_type_ids" in inputs:
                 mm = inputs["mm_token_type_ids"]
                 n_text_tokens = int((mm == 0).sum().item())
@@ -180,10 +217,7 @@ def main():
             prediction = parse_label(output_text)
 
             record = {
-                "example_id": example["example_id"],
-                "problem_id": example["problem_id"],
-                "schedule": example["schedule"],
-                "switch_count": example["switch_count"],
+                **copy_metadata(example),
                 "answer": example["answer"],
                 "prediction": prediction,
                 "correct": bool(prediction == example["answer"]),
