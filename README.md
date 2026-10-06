@@ -396,3 +396,146 @@ The two most important files are:
 target_role_state_probe_curves.csv
 outcome_probe_raw_vs_delta.csv
 \`\`\`
+
+
+---
+
+# Next Stage: 32B + Variable-Hop Depth Scaling
+
+The repository has now been checked for the next paper stage.
+
+## Code that is now generalized
+
+- \`run_qwen3vl.py\`
+  - Qwen3-VL-8B / 32B
+  - arbitrary evidence count
+  - safe \`--resume\`
+  - model/dtype/device options
+
+- \`mechanism_utils.py\`
+  - arbitrary hop count \`H\`
+  - evidence-boundary lookup for \`Evidence 1 ... Evidence H\`
+  - dynamic \`state1 ... stateH\`
+  - percentage layer specs such as
+    \`0%,25%,50%,65%,75%,90%,100%\`
+
+- \`extract_internal_probe_states.py\`
+  - arbitrary hop count
+  - \`--roles all\`
+  - 8B/32B
+  - normalized layer-depth metadata
+
+- \`train_internal_probes.py\`
+  - dynamic \`state1 ... stateH\` probing
+
+## New scripts
+
+### 1. Variable-hop dataset
+
+\`\`\`bash
+python generate_depth_scaling_dataset.py \
+  --out_dir data_depth_scaling \
+  --hops 4,6,8,12 \
+  --n_problems_per_hop 200 \
+  --order_mode identity
+\`\`\`
+
+Each latent problem receives:
+
+\`\`\`text
+all-Text
+V@role1
+V@role2
+...
+V@roleH
+\`\`\`
+
+so the number of interventions is O(H), not 2^H.
+
+For a stronger position control use \`--order_mode reverse_pair\`, or use
+\`--order_mode balanced_cyclic\` for full role-position balance. The latter is
+much more expensive.
+
+### 2. 8B depth run
+
+\`\`\`bash
+chmod +x run_depth_scaling_model.sh
+
+MODEL=Qwen/Qwen3-VL-8B-Instruct \
+LABEL=qwen3vl8b \
+./run_depth_scaling_model.sh
+\`\`\`
+
+### 3. 32B depth run
+
+\`\`\`bash
+MODEL=Qwen/Qwen3-VL-32B-Instruct \
+LABEL=qwen3vl32b \
+DTYPE=bf16 \
+./run_depth_scaling_model.sh
+\`\`\`
+
+The runner uses \`--resume\`, so an interrupted long run can continue safely.
+
+### 4. Analyze model scale × reasoning depth
+
+\`\`\`bash
+python analyze_depth_scaling.py \
+  --results \
+    results_depth_scaling/qwen3vl8b.jsonl \
+    results_depth_scaling/qwen3vl32b.jsonl \
+  --out_dir analysis_depth_scaling
+\`\`\`
+
+Main outputs:
+
+\`\`\`text
+all_text_calibration.csv
+matched_delta_by_role_depth.csv
+matched_delta_by_depth_bucket.csv
+clustered_depth_trend_regression.csv
+matched_examples.csv
+depth_scaling_<model>.png
+\`\`\`
+
+The key variable is normalized logical depth \`(k-1)/(H-1)\`, and the primary
+estimand is single-Visual correctness minus matched all-Text correctness.
+
+## Immediate mechanism control
+
+\`analyze_matched_state_decoding.py\` directly compares Text and Vision
+representations of the SAME accumulated reasoning state using the SAME grouped
+train/test splits.
+
+It reports both:
+
+- discrete x/y state classification
+- continuous Ridge x/y regression (R² and MAE)
+
+\`\`\`bash
+python analyze_matched_state_decoding.py \
+  --states probe_data/internal_probe_states_round6.pt \
+  --out_dir analysis_matched_state_round6
+\`\`\`
+
+Important outputs:
+
+\`\`\`text
+matched_state_compact_classification.csv
+matched_state_compact_r2.csv
+matched_state_classification_gap.csv
+matched_state_r2_gap.csv
+matched_state_mae_gap.csv
+\`\`\`
+
+This is the highest-priority mechanism control before making a strong
+state-composition claim.
+
+## Recommended execution order
+
+1. Run matched Text-vs-Vision state decoding on the existing 8B states.
+2. Replicate the original 4-hop role/position result with 32B.
+3. Calibrate all-Text accuracy for 4/6/8/12 hops.
+4. Run single-Visual depth scaling only where the baseline is not at floor.
+5. Compare 8B vs 32B role-depth curves.
+6. Only then spend compute on long-chain mechanism probes.
