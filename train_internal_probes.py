@@ -1,29 +1,15 @@
 #!/usr/bin/env python3
 """
-Round 6: grouped linear probes for exact intermediate reasoning states.
+Grouped linear probes for arbitrary-hop internal-state datasets.
 
-NEW in Round 6
---------------
-The earlier probes showed that the target fact itself remained highly
-decodable, even on late-Visual failures. That makes "fact forgotten" unlikely.
+Supports:
+- fact-direction decoding
+- modality-source decoding
+- raw Visual outcome prediction
+- paired V-T outcome prediction
+- exact accumulated-state decoding for state1 ... stateH
 
-This version therefore probes the EXACT accumulated reasoning states
-
-    s_k = f_1 + ... + f_k = (x_k, y_k)
-
-instead of only probing the final answer direction.  We decode x_k and y_k
-separately because the exact coordinate is richer than the answer class:
-(1, 0) and (3, 0) are both EAST, but they are different reasoning states.
-
-We also add a paired-difference outcome probe:
-
-    delta_h = h_visual - h_text
-
-for matched examples.  This reduces the risk that an outcome probe is merely
-learning static problem difficulty rather than a Vision-specific failure state.
-
-All train/test splits are GROUPED BY problem_id to avoid leakage from matched
-variants of the same latent problem.
+All splits are grouped by problem_id.
 """
 
 import argparse
@@ -54,15 +40,13 @@ def fit_probe(records, label_key, seed, v_only=False):
     for r in records:
         if v_only and r["variant"] != "V":
             continue
-
         label = (
             r["outcome_group"]
             if label_key == "outcome"
             else r.get(label_key)
         )
-        if label is None:
-            continue
-        filtered.append((r, label))
+        if label is not None:
+            filtered.append((r, label))
 
     if len(filtered) < 20:
         return None
@@ -113,47 +97,35 @@ def fit_probe(records, label_key, seed, v_only=False):
 
 
 def paired_delta_records(records, site):
-    """
-    Build one V-T residual feature per matched pair.
-
-    The label is the Visual run outcome (success/failure).  Because the Text and
-    Visual examples share the same latent problem/order, delta_h emphasizes the
-    modality-induced representational change rather than static difficulty.
-    """
     keyed = {}
     for r in records:
         if r["site"] != site:
             continue
         key = (
             r["problem_id"],
-            r["order_id"],
+            r.get("order_id", "o00"),
             int(r["logical_role"]),
             int(r["layer"]),
         )
         keyed.setdefault(key, {})[r["variant"]] = r
 
     out = []
-    for key, pair in keyed.items():
+    for _, pair in keyed.items():
         if "T" not in pair or "V" not in pair:
             continue
         t = pair["T"]
         v = pair["V"]
-        vt = (
-            v["feature"].float()
-            if torch.is_tensor(v["feature"])
-            else torch.tensor(v["feature"], dtype=torch.float32)
-        )
-        tt = (
-            t["feature"].float()
-            if torch.is_tensor(t["feature"])
-            else torch.tensor(t["feature"], dtype=torch.float32)
-        )
+        vt = v["feature"].float()
+        tt = t["feature"].float()
 
         out.append({
             "problem_id": v["problem_id"],
-            "order_id": v["order_id"],
+            "order_id": v.get("order_id", "o00"),
+            "hop_count": int(v.get("hop_count", 4)),
             "logical_role": int(v["logical_role"]),
+            "normalized_logical_depth": v.get("normalized_logical_depth"),
             "layer": int(v["layer"]),
+            "relative_layer_depth": v.get("relative_layer_depth"),
             "site": site,
             "variant": "DELTA",
             "outcome_group": v["outcome_group"],
@@ -162,7 +134,22 @@ def paired_delta_records(records, site):
     return out
 
 
-def make_tasks():
+def infer_max_hop(records):
+    values = [int(r.get("hop_count", 0)) for r in records]
+    if max(values, default=0) > 0:
+        return max(values)
+
+    state_indices = []
+    for key in records[0].keys():
+        if key.startswith("state") and key.endswith("_x"):
+            try:
+                state_indices.append(int(key[5:-2]))
+            except Exception:
+                pass
+    return max(state_indices, default=4)
+
+
+def make_tasks(max_hop):
     tasks = [
         ("target_boundary", "fact_direction", False),
         ("target_boundary", "variant", False),
@@ -172,29 +159,20 @@ def make_tasks():
         ("final_prompt", "variant", False),
         ("final_prompt", "outcome", True),
     ]
-
-    # Exact intermediate reasoning states. Probe x and y separately to avoid
-    # sparse coordinate classes and to preserve displacement magnitude.
-    for k in range(1, 5):
-        tasks.append(("final_prompt", f"state{k}_x", False))
-        tasks.append(("final_prompt", f"state{k}_y", False))
-        tasks.append(("final_prompt", f"state{k}_x", True))
-        tasks.append(("final_prompt", f"state{k}_y", True))
-
+    for k in range(1, max_hop + 1):
+        for coord in ["x", "y"]:
+            tasks.append(("final_prompt", f"state{k}_{coord}", False))
+            tasks.append(("final_prompt", f"state{k}_{coord}", True))
     return tasks
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--states",
-        type=Path,
-        default=Path("probe_data/internal_probe_states_round6.pt"),
-    )
+    parser.add_argument("--states", type=Path, required=True)
     parser.add_argument(
         "--out_dir",
         type=Path,
-        default=Path("analysis_probes_round6"),
+        default=Path("analysis_probes"),
     )
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
@@ -202,8 +180,9 @@ def main():
 
     payload = torch.load(args.states, map_location="cpu")
     records = payload["records"]
+    max_hop = infer_max_hop(records)
+    tasks = make_tasks(max_hop)
 
-    tasks = make_tasks()
     rows = []
     roles = sorted({int(r["logical_role"]) for r in records})
     layers = sorted({int(r["layer"]) for r in records})
@@ -217,7 +196,10 @@ def main():
             ]
 
             for site, label_key, v_only in tasks:
-                subset = [r for r in layer_role if r["site"] == site]
+                subset = [
+                    r for r in layer_role
+                    if r["site"] == site and r.get(label_key) is not None
+                ]
                 result = fit_probe(
                     subset,
                     label_key=label_key,
@@ -226,7 +208,6 @@ def main():
                 )
                 if result is None:
                     continue
-
                 rows.append({
                     "logical_role": role,
                     "layer": layer,
@@ -237,7 +218,6 @@ def main():
                     **result,
                 })
 
-    # NEW control: can the V-T representational CHANGE predict failure?
     delta_records = paired_delta_records(records, site="final_prompt")
     for role in roles:
         for layer in layers:
@@ -265,14 +245,9 @@ def main():
             })
 
     df = pd.DataFrame(rows)
-    out_csv = args.out_dir / "probe_results_round6.csv"
+    out_csv = args.out_dir / "probe_results.csv"
     df.to_csv(out_csv, index=False)
 
-    print("\n=== Round-6 probe results ===")
-    print(df.to_string(index=False))
-    print("\nSaved:", out_csv)
-
-    # Curves. Keep V-only and all-example state probes separate.
     for (site, target, v_only), sub in df.groupby(
         ["site", "probe_target", "v_only"]
     ):
@@ -297,21 +272,16 @@ def main():
         safe_target = target.replace("/", "_")
         suffix = "Vonly" if bool(v_only) else "all"
         plt.savefig(
-            args.out_dir
-            / f"probe_{safe_site}_{safe_target}_{suffix}.png",
+            args.out_dir / f"probe_{safe_site}_{safe_target}_{suffix}.png",
             dpi=180,
         )
         plt.close()
 
-    # Best layer summary for quick inspection.
     summary = (
         df.sort_values(
             [
-                "site",
-                "probe_target",
-                "v_only",
-                "logical_role",
-                "balanced_accuracy",
+                "site", "probe_target", "v_only",
+                "logical_role", "balanced_accuracy",
             ],
             ascending=[True, True, True, True, False],
         )
@@ -322,12 +292,10 @@ def main():
         .first()
     )
     summary.to_csv(
-        args.out_dir / "best_probe_layer_summary_round6.csv",
+        args.out_dir / "best_probe_layer_summary.csv",
         index=False,
     )
 
-    # Mechanism-focused subset:
-    # For each logical role r, inspect state_r_x / state_r_y in V-only runs.
     focus_rows = []
     for role in roles:
         for coord in ["x", "y"]:
@@ -342,15 +310,13 @@ def main():
 
     focus = (
         pd.concat(focus_rows, ignore_index=True)
-        if focus_rows
-        else pd.DataFrame()
+        if focus_rows else pd.DataFrame()
     )
     focus.to_csv(
         args.out_dir / "target_role_state_probe_curves.csv",
         index=False,
     )
 
-    # Compare success/failure predictability from raw V state vs paired V-T delta.
     outcome_compare = df[
         (df["probe_target"] == "outcome")
         & (
@@ -363,13 +329,11 @@ def main():
         index=False,
     )
 
-    print("\n=== Best probe layer by task / role ===")
-    print(summary.to_string(index=False))
-    print(
-        "\nMechanism-focused files:\n"
-        f"  {args.out_dir / 'target_role_state_probe_curves.csv'}\n"
-        f"  {args.out_dir / 'outcome_probe_raw_vs_delta.csv'}"
-    )
+    print("Saved:", out_csv)
+    print("Max hop inferred:", max_hop)
+    print("Mechanism-focused outputs:")
+    print(" ", args.out_dir / "target_role_state_probe_curves.csv")
+    print(" ", args.out_dir / "outcome_probe_raw_vs_delta.csv")
 
 
 if __name__ == "__main__":
