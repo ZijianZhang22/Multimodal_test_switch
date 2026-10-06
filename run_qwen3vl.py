@@ -193,10 +193,23 @@ def main():
         help='Passed to from_pretrained; "auto" is recommended for 32B.',
     )
     parser.add_argument(
+        "--conditions",
+        default=None,
+        help=(
+            "Optional comma-separated condition filter, e.g. "
+            "text_baseline or text_baseline,single_visual."
+        ),
+    )
+    parser.add_argument(
+        "--hops",
+        default=None,
+        help="Optional comma-separated hop-count filter, e.g. 4,6,8.",
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Useful for a quick smoke test.",
+        help="Useful for a quick smoke test after filtering.",
     )
     parser.add_argument("--max_new_tokens", type=int, default=16)
     parser.add_argument(
@@ -225,6 +238,32 @@ def main():
     model.eval()
 
     examples = list(load_jsonl(args.data))
+
+    if args.conditions:
+        wanted_conditions = {
+            x.strip()
+            for x in args.conditions.split(",")
+            if x.strip()
+        }
+        examples = [
+            ex for ex in examples
+            if ex.get("condition") in wanted_conditions
+        ]
+        print("Condition filter:", sorted(wanted_conditions))
+
+    if args.hops:
+        wanted_hops = {
+            int(x.strip())
+            for x in args.hops.split(",")
+            if x.strip()
+        }
+        examples = [
+            ex for ex in examples
+            if int(ex.get("hop_count", len(ex.get("facts", []))))
+            in wanted_hops
+        ]
+        print("Hop filter:", sorted(wanted_hops))
+
     if args.limit is not None:
         examples = examples[:args.limit]
 
