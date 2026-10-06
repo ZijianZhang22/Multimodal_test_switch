@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """
-Run Qwen3-VL on the original schedule experiment, Round-3 role/position data,
-or the single-fact perception control.
+Run Qwen3-VL on variable-hop multimodal reasoning datasets.
 
-The runner preserves experiment metadata in the result JSONL so the dedicated
-analysis scripts can operate without re-reading the source dataset.
+Compatible with:
+- legacy 4-hop schedule data
+- Round-3 role/position data
+- single-fact perception controls
+- depth-scaling data with arbitrary hop count
+- Qwen3-VL-8B-Instruct and Qwen3-VL-32B-Instruct
+
+The runner preserves experiment metadata in the result JSONL and supports
+safe resume, which is especially useful for 32B runs.
 """
 
 import argparse
@@ -72,11 +78,11 @@ def build_messages(example, data_dir):
         })
         return [{"role": "user", "content": content}]
 
-    # Chain task: works for both the original schedule dataset and Round 3.
+    n_facts = len(example["facts"])
     content = [{
         "type": "text",
         "text": (
-            "You will receive four pieces of evidence. "
+            f"You will receive {n_facts} pieces of evidence. "
             "Some evidence is written as text and some is shown as a diagram. "
             "Each diagram shows only a spatial relation between two labeled nodes. "
             "The evidence items may not be presented in reasoning-chain order. "
@@ -88,8 +94,8 @@ def build_messages(example, data_dir):
     }]
 
     for display_index, fact in enumerate(example["facts"], start=1):
-        # IMPORTANT: use physical presentation index here, not logical-step ID.
-        # Otherwise shuffled Round-3 examples would leak the latent reasoning order.
+        # Use physical presentation index, not logical-step ID.
+        # This prevents shuffled examples from leaking the latent chain order.
         add_fact_content(content, fact, data_dir, display_index=display_index)
 
     content.append({
@@ -108,16 +114,42 @@ def load_jsonl(path):
 
 
 def copy_metadata(example):
-    skip = {
-        "facts",
-        "question",
-        "answer",
+    skip = {"facts", "question", "answer"}
+    return {k: v for k, v in example.items() if k not in skip}
+
+
+def existing_example_ids(path):
+    ids = set()
+    if not path.exists():
+        return ids
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if row.get("example_id") is not None:
+                ids.add(row["example_id"])
+    return ids
+
+
+def resolve_dtype(name):
+    name = name.lower()
+    if name == "auto":
+        return "auto"
+    mapping = {
+        "bf16": torch.bfloat16,
+        "bfloat16": torch.bfloat16,
+        "fp16": torch.float16,
+        "float16": torch.float16,
+        "fp32": torch.float32,
+        "float32": torch.float32,
     }
-    metadata = {}
-    for key, value in example.items():
-        if key not in skip:
-            metadata[key] = value
-    return metadata
+    if name not in mapping:
+        raise ValueError(f"Unsupported dtype: {name}")
+    return mapping[name]
 
 
 def main():
@@ -135,6 +167,30 @@ def main():
     parser.add_argument(
         "--model",
         default="Qwen/Qwen3-VL-8B-Instruct",
+        help=(
+            "Examples: Qwen/Qwen3-VL-8B-Instruct or "
+            "Qwen/Qwen3-VL-32B-Instruct."
+        ),
+    )
+    parser.add_argument(
+        "--model_label",
+        default=None,
+        help="Short label stored in results, e.g. qwen3vl8b or qwen3vl32b.",
+    )
+    parser.add_argument(
+        "--attn_implementation",
+        choices=["sdpa", "flash_attention_2", "eager"],
+        default="sdpa",
+    )
+    parser.add_argument(
+        "--dtype",
+        default="auto",
+        choices=["auto", "bf16", "bfloat16", "fp16", "float16", "fp32", "float32"],
+    )
+    parser.add_argument(
+        "--device_map",
+        default="auto",
+        help='Passed to from_pretrained; "auto" is recommended for 32B.',
     )
     parser.add_argument(
         "--limit",
@@ -143,20 +199,28 @@ def main():
         help="Useful for a quick smoke test.",
     )
     parser.add_argument("--max_new_tokens", type=int, default=16)
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help=(
+            "Append to an existing output and skip example_ids already present. "
+            "Recommended for long 32B runs."
+        ),
+    )
     args = parser.parse_args()
 
     data_dir = args.data.parent
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
-    print("Loading processor...")
+    print("Loading processor:", args.model)
     processor = AutoProcessor.from_pretrained(args.model)
 
-    print("Loading model...")
+    print("Loading model:", args.model)
     model = Qwen3VLForConditionalGeneration.from_pretrained(
         args.model,
-        torch_dtype="auto",
-        device_map="auto",
-        attn_implementation="sdpa",
+        torch_dtype=resolve_dtype(args.dtype),
+        device_map=args.device_map,
+        attn_implementation=args.attn_implementation,
     )
     model.eval()
 
@@ -164,7 +228,22 @@ def main():
     if args.limit is not None:
         examples = examples[:args.limit]
 
-    with args.out.open("w", encoding="utf-8") as output_file:
+    done_ids = existing_example_ids(args.out) if args.resume else set()
+    if done_ids:
+        before = len(examples)
+        examples = [
+            ex for ex in examples
+            if ex.get("example_id") not in done_ids
+        ]
+        print(
+            f"Resume: found {len(done_ids)} existing example_ids; "
+            f"{before} -> {len(examples)} examples remaining."
+        )
+
+    mode = "a" if args.resume else "w"
+    model_label = args.model_label or args.model.split("/")[-1]
+
+    with args.out.open(mode, encoding="utf-8") as output_file:
         for example in tqdm(examples):
             messages = build_messages(example, data_dir)
 
@@ -218,6 +297,8 @@ def main():
 
             record = {
                 **copy_metadata(example),
+                "model": args.model,
+                "model_label": model_label,
                 "answer": example["answer"],
                 "prediction": prediction,
                 "correct": bool(prediction == example["answer"]),
@@ -229,9 +310,7 @@ def main():
                 "latency_sec": latency,
             }
 
-            output_file.write(
-                json.dumps(record, ensure_ascii=False) + "\n"
-            )
+            output_file.write(json.dumps(record, ensure_ascii=False) + "\n")
             output_file.flush()
 
     print("Saved:", args.out)
