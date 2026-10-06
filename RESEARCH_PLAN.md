@@ -330,28 +330,64 @@ for target-state complexity.
 
 ## 10. Code status
 
-### Already updated
+### Completed for the next stage
 
-`run_qwen3vl.py` now supports:
+`run_qwen3vl.py` supports:
 
 - Qwen3-VL-8B and Qwen3-VL-32B
-- arbitrary number of evidence items in the prompt
-- model labels
-- dtype / device-map options
+- arbitrary evidence count
+- model labels and dtype/device options
 - safe `--resume` for long runs
 
-### Still needs generalization
+`generate_depth_scaling_dataset.py` now supports:
 
-Current dataset/mechanism utilities remain partly hard-coded to H=4.
+- arbitrary hop counts such as 4/6/8/12
+- all-Text + single-Visual-at-each-role interventions
+- identity, reverse-pair, or fully balanced cyclic presentation orders
 
-Next code work:
+`mechanism_utils.py` now supports:
 
-1. add a variable-hop depth-scaling generator
-2. add balanced single-Visual role intervention for arbitrary H
-3. generalize evidence-boundary utilities from 1..4 to 1..H
-4. generalize latent-state labels to `state1 ... stateH`
-5. add `analyze_depth_scaling.py`
-6. add matched Text-vs-Vision state regression / multi-seed probe analysis
+- arbitrary hop count H
+- dynamic evidence-boundary lookup
+- dynamic `state1 ... stateH`
+- normalized layer selections such as
+  `0%,25%,50%,65%,75%,90%,100%`
+
+`extract_internal_probe_states.py` and `train_internal_probes.py` are now
+variable-hop compatible.
+
+`analyze_depth_scaling.py` now analyzes:
+
+- all-Text calibration
+- matched single-Visual penalty
+- normalized logical depth
+- hop-length interaction
+- 8B-vs-32B model-scale comparison
+
+`analyze_matched_state_decoding.py` implements the immediate mechanism control:
+
+- same matched latent problems
+- same grouped train/test split for Text and Vision
+- x/y classification
+- Ridge x/y regression
+- five-seed Text-vs-Vision decode gaps
+
+### Immediate execution priority
+
+1. Run `analyze_matched_state_decoding.py` on the existing Round-6 8B state file.
+2. Replicate the 4-hop role/position experiment with Qwen3-VL-32B.
+3. Generate 4/6/8/12-hop calibration data.
+4. Run all-Text calibration first and drop hop lengths that enter a floor regime.
+5. Run single-Visual depth scaling on the retained hop lengths.
+6. Compare 8B and 32B role-depth curves.
+7. Only after a stable behavioral result, run long-hop mechanism probes.
+
+### Still not implemented / still needed for the paper
+
+- second VLM family
+- second reasoning domain
+- adapter from an existing real benchmark into the RoleSwap format
+- final mitigation experiment after the mechanism is resolved
 
 ---
 
