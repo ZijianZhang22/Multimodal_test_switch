@@ -11,16 +11,28 @@ DATA="${DATA:-data_depth_scaling/depth_scaling_examples.jsonl}"
 OUT="${OUT:-results_depth_scaling/${LABEL}.jsonl}"
 DTYPE="${DTYPE:-auto}"
 ATTN="${ATTN:-sdpa}"
+CONDITIONS="${CONDITIONS:-}"
+HOPS="${HOPS:-}"
 
 cd "$(dirname "$0")"
 
-python run_qwen3vl.py \
-  --data "$DATA" \
-  --out "$OUT" \
-  --model "$MODEL" \
-  --model_label "$LABEL" \
-  --dtype "$DTYPE" \
-  --attn_implementation "$ATTN" \
+ARGS=(
+  --data "$DATA"
+  --out "$OUT"
+  --model "$MODEL"
+  --model_label "$LABEL"
+  --dtype "$DTYPE"
+  --attn_implementation "$ATTN"
   --resume
+)
+
+if [[ -n "$CONDITIONS" ]]; then
+  ARGS+=(--conditions "$CONDITIONS")
+fi
+if [[ -n "$HOPS" ]]; then
+  ARGS+=(--hops "$HOPS")
+fi
+
+python run_qwen3vl.py "${ARGS[@]}"
 
 echo "Saved: $OUT"
