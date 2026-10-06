@@ -1,27 +1,19 @@
 #!/usr/bin/env python3
 """
-Round 5A: extract paired internal states for linear-probe diagnostics.
+Extract paired internal states for matched all-Text vs single-Visual examples.
 
-For matched all-Text vs single-Visual examples we save, at selected decoder
-layers:
-  1) the hidden state at the END OF THE TARGET FACT
-  2) the hidden state at the FINAL PROMPT TOKEN
+Works for arbitrary hop count H and both Qwen3-VL-8B / Qwen3-VL-32B.
 
-This supports four mechanistic questions:
-  - Fact encoding: is the semantic direction decodable at the fact boundary?
-  - Intermediate-state composition: are the exact accumulated states
-    s_1, s_2, s_3, s_4 = cumulative (x,y) displacements decodable?
-  - Modality persistence: can a probe still tell Text vs Vision at each layer?
-  - Failure prediction: can internal states predict whether the Visual run
-    succeeds or fails?
+For each matched pair, save at selected decoder layers:
+  1) hidden state at the end of the target logical fact
+  2) hidden state at the final prompt token
 
-Splits should be done by problem_id, not by individual examples, to avoid
-paired-data leakage.
+The output stores exact accumulated reasoning states s_1...s_H, allowing later
+matched Text-vs-Vision state decoding and paired V-T trajectory analysis.
 """
 
 import argparse
 import gc
-import json
 from pathlib import Path
 
 import torch
@@ -38,35 +30,55 @@ from mechanism_utils import (
 )
 
 
-def parse_roles(text):
-    return [int(x.strip()) for x in text.split(",") if x.strip()]
+def parse_roles(text, dataset_rows):
+    raw = str(text).strip().lower()
+    if raw == "all":
+        roles = sorted({
+            int(x["visual_logical_step"])
+            for x in dataset_rows
+            if x.get("condition") == "single_visual"
+            and x.get("visual_logical_step") is not None
+        })
+        return roles
+    return sorted({
+        int(x.strip()) for x in str(text).split(",") if x.strip()
+    })
 
 
-def choose_results_path(path):
-    if path.exists():
-        return path
-    for fallback in [
-        Path("results_role_position/qwen3vl_role_position_full.jsonl"),
-        Path("results_role_position/qwen3vl_role_position.jsonl"),
-    ]:
-        if fallback.exists():
-            print(f"Results file {path} not found; using {fallback}")
-            return fallback
-    raise FileNotFoundError(path)
+def resolve_dtype(name):
+    name = name.lower()
+    if name == "auto":
+        return "auto"
+    mapping = {
+        "bf16": torch.bfloat16,
+        "bfloat16": torch.bfloat16,
+        "fp16": torch.float16,
+        "float16": torch.float16,
+        "fp32": torch.float32,
+        "float32": torch.float32,
+    }
+    if name not in mapping:
+        raise ValueError(f"Unsupported dtype: {name}")
+    return mapping[name]
 
 
 def build_pairs(dataset_rows, result_rows, roles, max_pairs_per_role_group):
     result_by_id = {x["example_id"]: x for x in result_rows}
     baseline_by_key = {
-        (x["problem_id"], x["order_id"]): x
+        (
+            x["problem_id"],
+            x.get("order_id", "o00"),
+            int(x.get("hop_count", len(x["facts"]))),
+        ): x
         for x in dataset_rows
         if x.get("condition") == "text_baseline"
     }
 
-    buckets = {}
-    for role in roles:
-        buckets[(role, "success")] = []
-        buckets[(role, "failure")] = []
+    buckets = {
+        (role, group): []
+        for role in roles
+        for group in ["success", "failure"]
+    }
 
     for ex in dataset_rows:
         if ex.get("condition") != "single_visual":
@@ -75,9 +87,14 @@ def build_pairs(dataset_rows, result_rows, roles, max_pairs_per_role_group):
         if role not in roles:
             continue
 
+        key = (
+            ex["problem_id"],
+            ex.get("order_id", "o00"),
+            int(ex.get("hop_count", len(ex["facts"]))),
+        )
+        baseline = baseline_by_key.get(key)
         vis_res = result_by_id.get(ex["example_id"])
-        baseline = baseline_by_key.get((ex["problem_id"], ex["order_id"]))
-        if vis_res is None or baseline is None:
+        if baseline is None or vis_res is None:
             continue
 
         base_res = result_by_id.get(baseline["example_id"])
@@ -89,23 +106,26 @@ def build_pairs(dataset_rows, result_rows, roles, max_pairs_per_role_group):
 
     selected = []
     for key, bucket in buckets.items():
-        bucket.sort(key=lambda x: (x[1]["problem_id"], x[1]["order_id"]))
+        bucket.sort(
+            key=lambda x: (
+                x[1]["problem_id"],
+                x[1].get("order_id", "o00"),
+            )
+        )
         picked = bucket[:max_pairs_per_role_group]
         print(
             f"role={key[0]} group={key[1]}: "
             f"available={len(bucket)} selected={len(picked)}"
         )
-        selected.extend([
-            {
+        for baseline, visual, base_res, vis_res in picked:
+            selected.append({
                 "role": key[0],
                 "group": key[1],
-                "baseline": b,
-                "visual": v,
-                "baseline_result": br,
-                "visual_result": vr,
-            }
-            for b, v, br, vr in picked
-        ])
+                "baseline": baseline,
+                "visual": visual,
+                "baseline_result": base_res,
+                "visual_result": vis_res,
+            })
     return selected
 
 
@@ -137,53 +157,60 @@ def collect_states(model, processor, example, data_dir, layers_to_keep):
         }
 
     token_count = int(inputs["input_ids"].shape[-1])
-
     del outputs, inputs
     return states, boundaries, token_count
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--data",
-        type=Path,
-        default=Path("data_role_position/role_position_examples.jsonl"),
-    )
-    parser.add_argument(
-        "--results",
-        type=Path,
-        default=Path("results_role_position/qwen3vl_role_position_full.jsonl"),
-    )
+    parser.add_argument("--data", type=Path, required=True)
+    parser.add_argument("--results", type=Path, required=True)
     parser.add_argument(
         "--out",
         type=Path,
         default=Path("probe_data/internal_probe_states.pt"),
     )
     parser.add_argument("--model", default="Qwen/Qwen3-VL-8B-Instruct")
+    parser.add_argument("--model_label", default=None)
     parser.add_argument(
         "--roles",
-        default="1,2,3,4",
-        help="Logical roles to include.",
+        default="all",
+        help='Comma-separated logical roles or "all".',
     )
     parser.add_argument(
         "--max_pairs_per_role_group",
         type=int,
         default=40,
-        help="Max success and failure pairs per logical role.",
     )
     parser.add_argument(
         "--layers",
-        default="0,8,16,20,24,28,32,35",
-        help='Layer spec, e.g. "20:32", "20:32:2", "0,8,16,24,28,32,35", or "all".',
+        default="0%,25%,50%,65%,75%,90%,100%",
+        help=(
+            'Absolute indices/ranges or normalized depth percentages. '
+            'Percentages are recommended for 8B-vs-32B comparisons.'
+        ),
+    )
+    parser.add_argument(
+        "--attn_implementation",
+        choices=["sdpa", "flash_attention_2", "eager"],
+        default="sdpa",
+    )
+    parser.add_argument(
+        "--dtype",
+        choices=[
+            "auto", "bf16", "bfloat16", "fp16",
+            "float16", "fp32", "float32",
+        ],
+        default="auto",
     )
     args = parser.parse_args()
 
-    args.results = choose_results_path(args.results)
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    roles = parse_roles(args.roles)
 
     dataset_rows = load_jsonl(args.data)
     result_rows = load_jsonl(args.results)
+    roles = parse_roles(args.roles, dataset_rows)
+
     pairs = build_pairs(
         dataset_rows,
         result_rows,
@@ -193,14 +220,15 @@ def main():
     if not pairs:
         raise RuntimeError("No eligible matched pairs found.")
 
-    print("Loading processor...")
+    print("Loading processor:", args.model)
     processor = AutoProcessor.from_pretrained(args.model)
-    print("Loading model...")
+
+    print("Loading model:", args.model)
     model = Qwen3VLForConditionalGeneration.from_pretrained(
         args.model,
-        torch_dtype="auto",
+        torch_dtype=resolve_dtype(args.dtype),
         device_map="auto",
-        attn_implementation="sdpa",
+        attn_implementation=args.attn_implementation,
     )
     model.eval()
 
@@ -208,51 +236,48 @@ def main():
     n_layers = len(layers)
     layers_to_keep = parse_layer_spec(args.layers, n_layers)
     print("Decoder path:", layer_path)
+    print("Number of decoder layers:", n_layers)
     print("Selected layers:", layers_to_keep)
 
     records = []
     data_dir = args.data.parent
+    model_label = args.model_label or args.model.split("/")[-1]
 
     for pair in tqdm(pairs, desc="paired state extraction"):
         role = int(pair["role"])
         baseline = pair["baseline"]
         visual = pair["visual"]
+        hop_count = int(visual.get("hop_count", len(visual["facts"])))
 
-        baseline_states, baseline_bounds, baseline_tokens = collect_states(
+        baseline_states, _, baseline_tokens = collect_states(
             model, processor, baseline, data_dir, layers_to_keep
         )
-        visual_states, visual_bounds, visual_tokens = collect_states(
+        visual_states, _, visual_tokens = collect_states(
             model, processor, visual, data_dir, layers_to_keep
         )
 
         labels = build_latent_labels(visual)
 
-        for variant, example, states, bounds, token_count, result in [
+        for variant, example, states, token_count, result in [
             (
-                "T",
-                baseline,
-                baseline_states,
-                baseline_bounds,
-                baseline_tokens,
+                "T", baseline, baseline_states, baseline_tokens,
                 pair["baseline_result"],
             ),
             (
-                "V",
-                visual,
-                visual_states,
-                visual_bounds,
-                visual_tokens,
+                "V", visual, visual_states, visual_tokens,
                 pair["visual_result"],
             ),
         ]:
             for layer in layers_to_keep:
-                target_state = states[layer]["logical"][role]
-                final_state = states[layer]["final"]
-
                 common = {
                     "problem_id": example["problem_id"],
-                    "order_id": example["order_id"],
+                    "order_id": example.get("order_id", "o00"),
+                    "hop_count": hop_count,
                     "logical_role": role,
+                    "normalized_logical_depth": (
+                        0.0 if hop_count == 1
+                        else (role - 1) / (hop_count - 1)
+                    ),
                     "physical_position": int(
                         visual["visual_presentation_position"]
                     ),
@@ -260,40 +285,33 @@ def main():
                     "variant": variant,
                     "correct": bool(result["correct"]),
                     "layer": int(layer),
+                    "relative_layer_depth": (
+                        0.0 if n_layers == 1
+                        else layer / (n_layers - 1)
+                    ),
                     "fact_direction": labels[f"fact{role}"],
                     "prefix_state": labels[f"prefix{role}"],
                     "suffix_state": labels[f"suffix{role}"],
-
-                    # Exact intermediate reasoning states s_1 ... s_4.
-                    # Store every prefix coordinate on every record so the
-                    # downstream probe can ask whether the FINAL prompt state
-                    # still contains each intermediate computation.
-                    "state1_x": labels["state1_x"],
-                    "state1_y": labels["state1_y"],
-                    "state1_coord": labels["state1_coord"],
-                    "state2_x": labels["state2_x"],
-                    "state2_y": labels["state2_y"],
-                    "state2_coord": labels["state2_coord"],
-                    "state3_x": labels["state3_x"],
-                    "state3_y": labels["state3_y"],
-                    "state3_coord": labels["state3_coord"],
-                    "state4_x": labels["state4_x"],
-                    "state4_y": labels["state4_y"],
-                    "state4_coord": labels["state4_coord"],
-
                     "answer": labels["answer"],
                     "input_tokens": token_count,
+                    "model": args.model,
+                    "model_label": model_label,
                 }
+
+                for k in range(1, hop_count + 1):
+                    common[f"state{k}_x"] = labels[f"state{k}_x"]
+                    common[f"state{k}_y"] = labels[f"state{k}_y"]
+                    common[f"state{k}_coord"] = labels[f"state{k}_coord"]
 
                 records.append({
                     **common,
                     "site": "target_boundary",
-                    "feature": target_state.to(torch.float16),
+                    "feature": states[layer]["logical"][role].to(torch.float16),
                 })
                 records.append({
                     **common,
                     "site": "final_prompt",
-                    "feature": final_state.to(torch.float16),
+                    "feature": states[layer]["final"].to(torch.float16),
                 })
 
         del baseline_states, visual_states
@@ -303,15 +321,14 @@ def main():
 
     payload = {
         "model": args.model,
+        "model_label": model_label,
         "n_layers": n_layers,
         "layers": layers_to_keep,
         "roles": roles,
         "records": records,
         "notes": (
-            "target_boundary = residual stream at end of target logical fact; "
-            "final_prompt = residual stream at final prompt token before generation; "
-            "stateK_x/stateK_y/stateK_coord = exact cumulative reasoning state "
-            "s_K = f_1 + ... + f_K."
+            "Arbitrary-hop paired Text/Vision state extraction. "
+            "stateK_x/y are exact cumulative states s_K=f_1+...+f_K."
         ),
     }
     torch.save(payload, args.out)
