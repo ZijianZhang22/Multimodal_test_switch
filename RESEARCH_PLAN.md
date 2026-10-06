@@ -1,309 +1,400 @@
-# Updated Research Plan: Reasoning-Role-Dependent Modality Effects
+# Revised Research Plan: Reasoning-Role-Dependent Multimodal Utilization
 
-## Where the project stands
+**Status date:** 2026-10-05
 
-Round 1 started from a switching-cost hypothesis:
+## 1. Current project framing
 
-> Does repeatedly switching between Text and Vision hurt multi-hop reasoning?
+The original project asked whether repeated Vision/Text switching creates an
+independent multimodal reasoning cost.
 
-Round 2 ran all 16 Text/Vision carrier assignments for the same 4-hop latent
-problems. The result changed the direction of the project.
+That hypothesis is no longer the main story.
 
-The main Round-2 pattern was:
+The 4-hop experiments show that **switch count itself is not significant**,
+while the effect of Vision depends strongly on the **logical reasoning role**
+occupied by the visual evidence.
 
-- Step 1: Vision - Text = **+4.38 points**
-- Step 2: Vision - Text = **-1.38 points**
-- Step 3: Vision - Text = **-7.88 points**
-- Step 4: Vision - Text = **-10.13 points**
-- switch count was not significant after controlling for the four positions
-  (\`p ≈ 0.285\`)
+The current core question is:
 
-So the project should no longer be framed as "switching cost."
+> **When and why does visual evidence become less usable as its logical role
+> moves later in a reasoning chain?**
 
-## New core question
+The working phenomenon name is:
 
-> **Does the effect of a modality depend on the logical reasoning role at which
-> that evidence is needed, rather than simply on its physical position in the
-> prompt?**
+> **reasoning-role-dependent multimodal utilization failure**
 
-The key distinction is:
+This framing is intentionally narrower than the generic claim that a model can
+"see a fact but fail to use it." Recent work such as *Seeing, Saying, but Not
+Using* (arXiv:2610.02876) already establishes an availability-utilization gap
+for spatial state. Our contribution must instead isolate **logical role** as a
+controlled causal variable.
 
-- **logical reasoning role**: which edge/fact in the latent chain the evidence
-  represents (\`f1, f2, f3, f4\`)
-- **physical presentation position**: where that evidence appears in the actual
-  input sequence (1st, 2nd, 3rd, 4th)
+---
 
-The current Round-2 experiment confounds these because logical Step 1 was also
-presented first, Step 4 was presented last, etc.
+## 2. What is already established
 
-## Round 3A: Role x Presentation-Position Decoupling
+### 2.1 Switching cost is not the main effect
 
-Keep the latent chain fixed but reorder the four evidence items.
+Round 1 and Round 2 do not show a monotonic decline with more V↔T switches.
 
-For example, the logical chain stays:
+In the all-16 factorial analysis:
 
-\`f1 -> f2 -> f3 -> f4\`
+- Vision at logical Step 1: about **+4.38 points**
+- Step 2: about **-1.38 points**
+- Step 3: about **-7.88 points**
+- Step 4: about **-10.13 points**
+- switch count: not significant after controlling for step position
 
-but the prompt may present:
+So the project should not be presented as a switching-cost paper.
 
-\`f4, f1, f3, f2\`
+### 2.2 Logical role is stronger than physical prompt position
 
-Exactly one logical fact is rendered as Vision; the other three are Text.
+Round 3 shuffled the physical presentation order while keeping the latent
+reasoning chain fixed.
 
-For every presentation order, also run a matched all-Text baseline.
+After controlling for physical position:
 
-Primary matched effect:
+- Role 2 vs Role 1: OR ≈ 0.80, p ≈ 0.032
+- Role 3 vs Role 1: OR ≈ 0.61, p ≈ 4.45e-6
+- Role 4 vs Role 1: OR ≈ 0.49, p ≈ 2.5e-6
 
-\`delta(role, position) = single-visual accuracy - matched all-text accuracy\`
+Physical position 2/3 were not significant; physical position 4 had a smaller
+negative effect.
 
-where the problem and physical presentation order are identical.
+Current behavioral conclusion:
 
-### Cheap pilot
+> **logical-role effect >> ordinary presentation-position effect**
 
-Use four balanced presentation orders. They are selected so that each logical
-role appears once at each physical position.
+### 2.3 Basic perception is not the explanation
 
-With 100 latent problems:
+The single-fact control gives 100% accuracy for both Text and Vision across all
+four latent steps.
 
-- 4 presentation orders
-- 4 single-visual logical roles per order
-- 1 matched all-text baseline per order
+Therefore the late-role penalty is not well explained by the visual relation
+being unreadable.
 
-Total: \`100 x 4 x 5 = 2000\` examples.
+### 2.4 Local fact loss is not the main mechanism
 
-### Stronger follow-up
+Current mechanism evidence:
 
-Use all 24 permutations after the cheap pilot if the effect survives.
+- target fact direction remains strongly linearly decodable
+- final-prompt state can retain the visual fact
+- global Text/Vision cosine similarity remains high
+- matched fact-boundary activation patching does not selectively rescue errors
+  relative to other-fact / unrelated controls
 
-Total: \`100 x 24 x 5 = 12000\` examples.
+This weakens a simple "late visual fact is lost" explanation.
 
-## Round 3B: Single-Fact Perception Control
+### 2.5 Distributed trajectory divergence is currently the strongest mechanism signal
 
-Before claiming an integration failure, test whether the model can simply read
-the visual relation.
+For matched Text/Visual variants of the same problem/order, the paired hidden
+state difference
 
-For every latent fact, ask its pairwise relation directly:
+`delta_h = h_visual - h_text`
 
-- Text realization
-- Vision realization
+strongly predicts final failure for late roles.
 
-With 100 problems:
+Examples from Round 6:
 
-\`100 x 4 facts x 2 modalities = 800\` examples.
+- Role 3: balanced failure-prediction accuracy reaches about 0.95
+- Role 4: about 0.89 in late layers
 
-Interpretation:
+This suggests that the modality substitution changes the distributed reasoning
+trajectory in a way that is highly predictive of failure.
 
-- **High visual single-fact accuracy + late visual chain penalty**
-  -> evidence for an integration/reasoning bottleneck.
-- **Low visual single-fact accuracy**
-  -> the current effect may mainly reflect perception/rendering difficulty and
-  must be calibrated before a stronger mechanism claim.
+---
 
-## Main hypotheses
+## 3. Current unresolved mechanism question
 
-### H1: Reasoning-role hypothesis
+The main unresolved distinction is:
 
-The visual penalty remains tied to late logical roles even when those facts are
-moved to early physical prompt positions.
+1. **relational composition / state-update degradation**
+2. **downstream decision / readout failure**
 
-This is the most interesting outcome.
+Round 6 probes exact accumulated states
 
-### H2: Physical-position hypothesis
+`s_k = f_1 + ... + f_k = (x_k, y_k)`
 
-The penalty follows where the evidence is physically placed in the prompt.
+and shows useful signals, especially for Role 3, but raw state decoding cannot
+yet be compared fairly across roles because the class support differs with k.
 
-Then the project is closer to known modality/order bias and should be reframed
-accordingly.
+The mechanism claim therefore still needs one key matched control.
 
-### H3: Perception hypothesis
+---
 
-Vision is already much worse on the isolated pairwise relation.
+## 4. Phase A — Immediate mechanism control (highest priority)
 
-Then the 4-hop effect is not yet evidence for multimodal integration failure.
+### 4.1 Matched Text-vs-Vision state decoding
 
-### H4: Integration hypothesis
+For the exact same latent problem, presentation order, logical role, and target
+state, compare:
 
-Vision is accurate in isolation, but becomes harmful for certain logical roles
-inside the chain.
+- matched all-Text run
+- single-Visual run
 
-Then the next phase should investigate representation alignment and integration
-with layer-wise probes and causal patching.
+Probe the same `s_k` in both conditions.
 
-## Go / No-Go decision
+Primary quantity:
 
-Continue to mechanism work if:
+`decode_gap_k = Decode_Vision(s_k) - Decode_Text(s_k)`
 
-1. visual perception is reasonably strong in the single-fact control, and
-2. logical-role effects remain after physical presentation order is controlled.
+This avoids comparing raw probe accuracy across different logical roles.
 
-If the effect is only physical-position bias, the result is still useful but
-has more overlap with existing order-bias work.
+### 4.2 Continuous state regression
 
-If the effect is mostly explained by poor visual perception, improve/calibrate
-the visual realization before drawing multimodal reasoning conclusions.
+In addition to discrete x/y classification, use linear/ridge regression for the
+exact cumulative coordinates:
 
-## Mechanism phase after Round 3
+- x_k
+- y_k
 
-Only after Round 3 supports the role-dependent effect:
+Report:
 
-1. compare text vs visual fact representations layer by layer
-2. test whether visual information becomes modality-agnostic later than text
-3. patch the matched Text representation into the failing Visual run
-4. identify whether recovery happens at perception, alignment, integration, or
-   reasoning layers
-5. then test whether a small pre-alignment/routing intervention reduces the
-   late-role visual penalty
+- R²
+- MAE
+- matched Vision-minus-Text degradation
 
-## Paper-level framing if the result survives
+This reduces sensitivity to different class counts at different depths.
 
-Avoid:
+### 4.3 Multi-seed robustness
 
-> Image-first is better than text-first.
+Use at least 5 grouped train/test splits by `problem_id`.
 
-Avoid:
+Report mean ± std or bootstrap confidence intervals.
 
-> More modality switches hurt reasoning.
+### 4.4 Decision rule
 
-Prefer:
+If the target visual fact remains decodable but matched Vision `s_k` decoding
+drops relative to Text, call the mechanism:
 
-> **Prior work shows that modality order matters. We ask whether apparent order
-> effects are actually caused by physical presentation order or by which
-> logical reasoning roles are assigned to each modality.**
+> **role-dependent state-composition / state-update degradation**
 
-A possible title:
+If `s_k` remains comparably decodable in Text and Vision but the final answer
+still fails, shift the mechanism framing toward:
 
-**When Should Evidence Be Visual? Disentangling Reasoning Role and Presentation
-Position in Multimodal Multi-Step Reasoning**
+> **decision/readout utilization failure**
 
+---
 
-## Round 4/5 update: internal mechanism localization
+## 5. Phase B — Qwen3-VL 8B -> 32B scale replication
 
-Round 3 supported the role-dependent effect and the perception control reached
-100% for both Text and Vision. Coarse final-prompt-token patching then showed a
-mid/late rescue signal, with Role 4 showing a narrower window around layers
-24–28. Global Text/Vision cosine similarity stayed high, so the current working
-hypothesis is not global representation collapse.
+Use the exact same 4-hop Round-3 dataset first.
 
-### Current mechanism candidates
+Do not change model size and task structure at the same time.
 
-1. **Fact encoding failure**
-   - the visual relation is perceived behaviorally, but its semantic direction
-     is not cleanly represented inside the language-model residual stream.
+Primary quantity:
 
-2. **State-update / integration bottleneck**
-   - the visual fact is encoded, but is not successfully merged into the
-     accumulated reasoning state, especially for late logical roles.
+`Delta_k = Acc(single-V at logical role k) - Acc(matched all-Text)`
 
-3. **Late decision/readout bottleneck**
-   - the fact and integrated state are both present, but the final answer
-     readout becomes incorrect later.
+Compare:
 
-4. **Persistent modality-specific representation**
-   - semantic information is present, but the model retains a strong
-     Text-vs-Vision signature instead of reaching a sufficiently
-     modality-invariant state.
+- `Delta_k^(8B)`
+- `Delta_k^(32B)`
 
-### Internal probes
+Questions:
 
-Use linear probes at two sites:
+- Does scale reduce the late-role gap?
+- Does scale merely move the failure onset later?
+- Does the role curve remain qualitatively unchanged?
 
-- target-fact boundary: decode fact direction / source modality / future outcome
-- final-prompt state: decode target fact / answer / source modality / outcome
+### Layer comparison
 
-A useful signature for an integration bottleneck is:
+Do not reuse 8B absolute layer indices for 32B.
 
-- fact direction remains highly decodable at the local boundary
-- final-state fact or answer decodability degrades specifically for late Visual
-  failures
-- failure becomes linearly predictable in the same layer range highlighted by
-  causal patching
+Use normalized decoder depth such as:
 
-### Fact-level causal patching
+- 0%
+- 25%
+- 50%
+- 65%
+- 75%
+- 90%
+- final layer
 
-Patch only the target fact-boundary residual state, rather than the entire final
-prompt state. Compare the matched Text fact against same-example and unrelated
-controls.
+---
 
-Strong causal evidence requires:
+## 6. Phase C — Variable-hop depth scaling
 
-\`matched same-fact rescue > other-fact / unrelated controls\`
+Target hop lengths:
 
-A dense scan of layers 20–32 is the current priority.
+- 4
+- 6
+- 8
+- 12
 
-### Next escalation only if the signal survives
+### 6.1 Calibration first
 
-If fact-level patching and probes agree on a layer window:
+For each H, first run all-Text.
 
-1. separate Attention vs MLP contributions inside that window
-2. identify important heads / MLP blocks by ablation
-3. test small representation-alignment or routing interventions
-4. validate on another VLM and a second reasoning domain
+Prefer hop ranges where all-Text accuracy is roughly 65-95%, avoiding obvious
+floor/ceiling regimes.
 
+### 6.2 Long-chain intervention design
 
-## Round 6 update: from fact availability to computation utilization
+Do not enumerate all `2^H` schedules.
 
-Round-5 results weakened the hypothesis that late-Visual failures are caused by
-loss of the target fact itself.
+Use:
 
-Current evidence suggests:
+- all-Text baseline
+- one single-Visual replacement at every logical role
 
-- target fact semantics remain strongly decodable
-- the target fact can remain present at the final prompt state
-- a local matched fact-boundary patch does not selectively rescue the error
-- therefore the failure may be distributed across the relational computation
-  rather than stored in one local fact representation
+Cost becomes O(H).
 
-### Revised mechanism question
+### 6.3 Normalized logical depth
 
-> Does the model know the late visual fact but fail to incorporate it into the
-> accumulated reasoning state?
+Define:
 
-The new latent-state probes explicitly decode:
+`r = (k - 1) / (H - 1)`
 
-\`\`\`text
-s1 = f1
-s2 = f1 + f2
-s3 = f1 + f2 + f3
-s4 = f1 + f2 + f3 + f4
-\`\`\`
+Analyze Vision replacement as a function of relative reasoning depth.
 
-using exact \`x/y\` coordinates rather than only the final direction class.
+The main scaling question becomes:
 
-### Main diagnostic signatures
+> Does the visual penalty become more negative with normalized logical depth,
+> and does longer reasoning amplify that trend?
 
-**State-update / composition failure**
+### 6.4 Physical-order control
 
-- target fact direction remains decodable
-- previous accumulated state remains decodable
-- the newly updated state \`s_k\` degrades specifically when logical role \`k\`
-  is Visual
-- failure signal appears in approximately the same mid/late layer range
+For representative early/middle/late roles, continue to balance or shuffle
+physical presentation order so depth effects cannot be reduced to recency.
 
-**Decision/readout failure**
+---
 
-- target fact remains decodable
-- exact \`s_k\` also remains strongly decodable
-- generated answer is nevertheless wrong
+## 7. Phase D — Cross-family and cross-domain generalization
 
-**Static-difficulty confound**
+Only after the 8B/32B within-family replication is stable:
 
-A raw outcome probe may predict failure because some latent problems are simply
-harder.  Round 6 therefore also probes the paired representational difference:
+### Second model family
 
-\`delta_h = h_visual - h_text\`
+Add one architecture-different VLM.
 
-for the exact same latent problem and presentation order.  If \`delta_h\`
-predicts success/failure, that is stronger evidence that the failure signal is
-modality-induced rather than merely problem difficulty.
+The purpose is replication, not another large mechanism sweep.
 
-### Immediate decision rule after Round 6
+### Second reasoning domain
 
-1. If late-Visual \`s4\` decoding collapses while \`f4\` remains strong:
-   prioritize distributed composition/state-update interventions.
-2. If \`s4\` remains strong but output accuracy is low:
-   prioritize answer readout / late decision dynamics.
-3. If paired \`V-T\` deltas strongly predict failure in a narrow layer window:
-   localize Attention-vs-MLP contributions inside that window.
-4. Do not interpret 100% modality-source decoding as proof of failed semantic
-   alignment by itself; low-level token-count/position differences can make
-   Text vs Vision trivially separable.
+Preferred first extension:
+
+> graph/path reasoning
+
+Requirements:
+
+- explicit `f_1 ... f_H`
+- exact intermediate states
+- Text/Vision twin realization for every fact
+- matched single-Visual role intervention
+
+The second domain tests whether the role-dependent effect is specific to spatial
+relations or generalizes to another compositional structure.
+
+---
+
+## 8. Phase E — Component localization and mitigation
+
+Only do this if Phase A produces a stable mechanism window.
+
+Possible next steps:
+
+- Attention vs MLP contribution
+- component/head ablation
+- state-explicit prompting
+- intermediate-state supervision
+- readout-specific intervention if the bottleneck is downstream
+
+Self-routing / oracle-routing is no longer the default mitigation because
+switching/routing lag is no longer the strongest explanation.
+
+---
+
+## 9. Statistical analysis
+
+### Behavioral model
+
+A useful mixed model is:
+
+`Correct ~ VisionReplacement * NormalizedDepth * HopLength * ModelScale + PhysicalPosition + (1 | latent_problem)`
+
+Also report matched bootstrap / McNemar comparisons.
+
+### Mechanism model
+
+Prioritize:
+
+- matched Text-vs-Vision decode gap
+- paired `delta_h = h_V - h_T`
+- relative layer depth
+- grouped splits by latent problem
+
+Do not interpret raw probe differences across logical roles without controlling
+for target-state complexity.
+
+---
+
+## 10. Code status
+
+### Already updated
+
+`run_qwen3vl.py` now supports:
+
+- Qwen3-VL-8B and Qwen3-VL-32B
+- arbitrary number of evidence items in the prompt
+- model labels
+- dtype / device-map options
+- safe `--resume` for long runs
+
+### Still needs generalization
+
+Current dataset/mechanism utilities remain partly hard-coded to H=4.
+
+Next code work:
+
+1. add a variable-hop depth-scaling generator
+2. add balanced single-Visual role intervention for arbitrary H
+3. generalize evidence-boundary utilities from 1..4 to 1..H
+4. generalize latent-state labels to `state1 ... stateH`
+5. add `analyze_depth_scaling.py`
+6. add matched Text-vs-Vision state regression / multi-seed probe analysis
+
+---
+
+## 11. Updated paper structure
+
+1. **Introduction** — reasoning-role-dependent visual usability
+2. **Controlled benchmark** — matched Text/Vision fact carriers and role intervention
+3. **Behavioral finding** — role effect; switch-count null result
+4. **Controls** — physical position, perception, matched all-Text
+5. **Mechanism** — fact availability, local patching null, paired trajectory shift, matched state decoding
+6. **Scale and depth** — 8B vs 32B; 4/6/8/12 hops
+7. **Generalization** — second family + second domain
+8. **Related work / discussion**
+
+---
+
+## 12. Minimum evidence for a paper
+
+### Already satisfied
+
+- controlled paired 4-hop benchmark
+- all-16 carrier decomposition
+- logical-role vs physical-position control
+- isolated perception calibration
+- initial mechanistic probing and causal patching
+
+### Still needed for a stronger submission
+
+- matched Text-vs-Vision state decoding with robust statistics
+- 32B replication
+- longer-hop replication
+- ideally a second model family
+- ideally a second reasoning domain
+
+The main-conference version should not rely only on one model and one synthetic
+spatial domain.
+
+---
+
+## 13. Current one-sentence pitch
+
+> **We show that the usability of otherwise correctly perceived visual evidence
+> depends systematically on the logical role it occupies within a reasoning
+> chain, even after controlling for physical prompt position, and we study how
+> this role dependence emerges internally and scales with reasoning depth and
+> model size.**
