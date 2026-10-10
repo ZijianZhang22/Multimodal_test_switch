@@ -43,7 +43,7 @@ def parse_label(text, reasoning_mode="direct"):
     # In short-CoT mode, never score an intermediate direction word as the
     # answer. If FINAL is missing (usually because generation was truncated),
     # mark the prediction invalid instead.
-    if reasoning_mode == "short_cot":
+    if reasoning_mode in {"short_cot", "cot"}:
         return None
 
     # Backward-compatible direct-answer parsing.
@@ -101,12 +101,21 @@ def build_messages(example, data_dir, reasoning_mode="direct"):
             "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
             "SOUTHEAST, SOUTHWEST, SAME."
         )
-    else:
+    elif reasoning_mode == "short_cot":
         answer_instruction = (
             "Use ONE compact scratchpad line only. Do not restate the evidence. "
             "Track the net displacement symbolically, for example: "
             "E + N + W + S = (0,0). "
             "Then end with exactly: FINAL: <LABEL>, where <LABEL> is one of "
+            "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
+            "SOUTHEAST, SOUTHWEST, SAME."
+        )
+    else:
+        answer_instruction = (
+            "Reason through the spatial chain step by step before answering. "
+            "You may use as much intermediate reasoning as needed to keep track "
+            "of the entities and cumulative displacement. "
+            "At the end, write exactly: FINAL: <LABEL>, where <LABEL> is one of "
             "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
             "SOUTHEAST, SOUTHWEST, SAME."
         )
@@ -243,11 +252,11 @@ def main():
     )
     parser.add_argument(
         "--reasoning_mode",
-        choices=["direct", "short_cot"],
+        choices=["direct", "short_cot", "cot"],
         default="direct",
         help=(
-            "direct: output one label only; short_cot: allow at most two short "
-            "reasoning lines and require FINAL: <LABEL>."
+            "direct: output one label only; short_cot: compact scratchpad; "
+            "cot: unrestricted step-by-step reasoning. CoT modes require FINAL: <LABEL>."
         ),
     )
     parser.add_argument(
@@ -274,7 +283,7 @@ def main():
     generation_max_new_tokens = (
         args.max_new_tokens
         if args.max_new_tokens is not None
-        else (48 if args.reasoning_mode == "short_cot" else 16)
+        else (48 if args.reasoning_mode == "short_cot" else 256 if args.reasoning_mode == "cot" else 16)
     )
     print(
         "Reasoning mode:",
