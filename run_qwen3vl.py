@@ -32,6 +32,18 @@ LABELS = [
 
 def parse_label(text):
     normalized = text.upper().strip()
+
+    # Short-CoT mode is instructed to end with "FINAL: <LABEL>".
+    # Prefer that explicit final answer so direction words mentioned in the
+    # reasoning do not get mistaken for the prediction.
+    final_match = re.search(
+        r"FINAL\s*:\s*(NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST|NORTH|SOUTH|EAST|WEST|SAME)\b",
+        normalized,
+    )
+    if final_match:
+        return final_match.group(1)
+
+    # Backward-compatible direct-answer parsing.
     for label in LABELS:
         if re.search(rf"\b{re.escape(label)}\b", normalized):
             return label
@@ -56,7 +68,7 @@ def add_fact_content(content, fact, data_dir, display_index):
         })
 
 
-def build_messages(example, data_dir):
+def build_messages(example, data_dir, reasoning_mode="direct"):
     task_type = example.get("task_type", "chain")
 
     if task_type == "perception":
@@ -87,9 +99,18 @@ def build_messages(example, data_dir):
             "Each diagram shows only a spatial relation between two labeled nodes. "
             "The evidence items may not be presented in reasoning-chain order. "
             "Use the entity labels and all relevant facts to solve the final question.\n\n"
-            "Answer with exactly ONE label from: "
-            "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
-            "SOUTHEAST, SOUTHWEST, SAME."
+            (
+                "Answer with exactly ONE label from: "
+                "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
+                "SOUTHEAST, SOUTHWEST, SAME."
+                if reasoning_mode == "direct"
+                else
+                "Use a very short scratchpad to solve the chain. "
+                "Keep the reasoning to at most TWO short lines and under about 40 words. "
+                "Then end with exactly: FINAL: <LABEL>, where <LABEL> is one of "
+                "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
+                "SOUTHEAST, SOUTHWEST, SAME."
+            )
         ),
     }]
 
@@ -211,7 +232,24 @@ def main():
         default=None,
         help="Useful for a quick smoke test after filtering.",
     )
-    parser.add_argument("--max_new_tokens", type=int, default=16)
+    parser.add_argument(
+        "--reasoning_mode",
+        choices=["direct", "short_cot"],
+        default="direct",
+        help=(
+            "direct: output one label only; short_cot: allow at most two short "
+            "reasoning lines and require FINAL: <LABEL>."
+        ),
+    )
+    parser.add_argument(
+        "--max_new_tokens",
+        type=int,
+        default=None,
+        help=(
+            "Generation cap. Defaults to 16 for direct mode and 48 for "
+            "short_cot mode."
+        ),
+    )
     parser.add_argument(
         "--resume",
         action="store_true",
@@ -224,6 +262,17 @@ def main():
 
     data_dir = args.data.parent
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    generation_max_new_tokens = (
+        args.max_new_tokens
+        if args.max_new_tokens is not None
+        else (48 if args.reasoning_mode == "short_cot" else 16)
+    )
+    print(
+        "Reasoning mode:",
+        args.reasoning_mode,
+        "| max_new_tokens:",
+        generation_max_new_tokens,
+    )
 
     print("Loading processor:", args.model)
     processor = AutoProcessor.from_pretrained(args.model)
@@ -284,7 +333,11 @@ def main():
 
     with args.out.open(mode, encoding="utf-8") as output_file:
         for example in tqdm(examples):
-            messages = build_messages(example, data_dir)
+            messages = build_messages(
+                example,
+                data_dir,
+                reasoning_mode=args.reasoning_mode,
+            )
 
             inputs = processor.apply_chat_template(
                 messages,
@@ -315,7 +368,7 @@ def main():
                 generated = model.generate(
                     **inputs,
                     do_sample=False,
-                    max_new_tokens=args.max_new_tokens,
+                    max_new_tokens=generation_max_new_tokens,
                 )
 
             if torch.cuda.is_available():
@@ -342,6 +395,8 @@ def main():
                 "prediction": prediction,
                 "correct": bool(prediction == example["answer"]),
                 "raw_output": output_text,
+                "reasoning_mode": args.reasoning_mode,
+                "generation_max_new_tokens": generation_max_new_tokens,
                 "input_tokens": input_token_count,
                 "text_tokens": n_text_tokens,
                 "visual_tokens": n_visual_tokens,
