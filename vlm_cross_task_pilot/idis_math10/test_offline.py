@@ -40,6 +40,19 @@ class OfflineTest(unittest.TestCase):
         self.assertNotIn('17 + 23',a)
         self.assertIn('<math_answer>',a)
 
+    def test_visual_first_preserves_original_prompt_and_output_order(self):
+        q = "Find angle x in the pictured triangle."
+        baseline = prompt_for(q, "original")
+        vf = prompt_for(q, "visual_first")
+        ef = prompt_for(q, "easy_first")
+        self.assertTrue(vf.startswith(baseline))
+        self.assertIn("17 + 23", vf)
+        self.assertNotIn("17 + 23", baseline)
+        self.assertIn("ONLY AFTER Question 2", vf)
+        self.assertIn("<math_answer>", vf)
+        self.assertIn("<warmup>", vf)
+        self.assertTrue(ef.endswith(baseline))
+
     def test_priority(self):
         self.assertLess(priority({'problem_version':'Vision Intensive'}),
                         priority({'problem_version':'Text Dominant'}))

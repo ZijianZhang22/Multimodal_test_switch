@@ -30,6 +30,19 @@ def math_prompt(question):
 def prompt_for(question, condition):
     if condition == "original":
         return math_prompt(question)
+    if condition == "visual_first":
+        # Preserve the EXACT original visual-math prompt as a prefix.
+        # Original prompt names it "Question 2"; the extra question is Question 3.
+        return (
+            math_prompt(question)
+            + "\n\nQuestion 3 (independent, solve ONLY AFTER Question 2): "
+            + EASY_QUESTION
+            + "\nThis additional question is entirely unrelated to the image. "
+              "First solve Question 2 completely, and output its answer inside "
+              "<math_answer>...</math_answer>. Only then solve Question 3, "
+              "placing its answer inside <warmup>...</warmup>. "
+              "Keep the two answers separate."
+        )
     if condition == "easy_first":
         return (
             f"Question 1 (independent, solve FIRST): {EASY_QUESTION}\n"
@@ -81,7 +94,16 @@ def main():
     p.add_argument("--temperature",type=float,default=0.7)
     p.add_argument("--top-p",type=float,default=0.95)
     p.add_argument("--seed",type=int,default=42)
+    p.add_argument("--conditions",nargs="+",default=["original","easy_first"],
+                   choices=["original","easy_first","visual_first"],
+                   help="Generate selected conditions only; default preserves original pilot")
+    p.add_argument("--skip-score",action="store_true",
+                   help="Do not call original A/C scorer; use score_three.py for A/B/C")
     args=p.parse_args()
+    if len(set(args.conditions))!=len(args.conditions):
+        p.error("--conditions contains duplicates")
+    if "visual_first" in args.conditions and not args.skip_score:
+        p.error("With visual_first, pass --skip-score, then use score_three.py")
     if args.samples<1:p.error("samples must be >=1")
     if args.max_image_side<512:p.error("max-image-side should be >=512")
     manifest=Path(args.manifest).expanduser().resolve()
@@ -104,14 +126,15 @@ def main():
         if not Path(r["image"]).is_file():
             raise FileNotFoundError(r["image"])
         for rep in range(args.samples):
-            for condition in ("original","easy_first"):
+            for condition in args.conditions:
                 if (r["sample_index"],condition,rep) not in completed:
                     tasks.append((r,condition,rep))
-    print(f"Selected math questions: {len(rows)}; planned generations: {len(rows)*2*args.samples}; "
+    print(f"Selected math questions: {len(rows)}; planned generations: {len(rows)*len(args.conditions)*args.samples}; "
           f"pending: {len(tasks)}",flush=True)
     if not tasks:
-        from score import main as score_main
-        score_main(out)
+        if not args.skip_score:
+            from score import main as score_main
+            score_main(out)
         return
     import torch
     from transformers import AutoProcessor,Qwen3VLForConditionalGeneration
@@ -147,7 +170,7 @@ def main():
             "problem_version":r.get("problem_version"),"condition":condition,"rep":rep,
             "variant":r["variant"],"n_distractors":r["n_distractors"],
             "question":r["question"],"question_for_eval":r["question_for_eval"],
-            "gold":r["answer"],"easy_gold":EASY_GOLD if condition=="easy_first" else None,
+            "gold":r["answer"],"easy_gold":EASY_GOLD if condition in ("easy_first","visual_first") else None,
             "image":r["image"],"prompt":prompt,"prediction":raw,
             "num_input_tokens":int(inputs["input_ids"].shape[1]),
             "num_new_tokens":len(generated),
@@ -163,8 +186,9 @@ def main():
         print(f"[{index}/{len(tasks)}] {r['sample_index']} {condition} "
               f"total={len(generated)} thinking={n_thinking} final={n_final} "
               f"truncated={rec['hit_max_token']}",flush=True)
-    from score import main as score_main
-    score_main(out)
+    if not args.skip_score:
+        from score import main as score_main
+        score_main(out)
 
 
 if __name__=="__main__":
