@@ -1,8 +1,8 @@
 import argparse,csv,json,random,re,statistics,sys
 from pathlib import Path
 from collections import defaultdict
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/"idis_math10"))
-from score import auto_score,final_tag,box_extract,decimal_of
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from idis_math10.score import auto_score,final_tag,box_extract,decimal_of
 TO_TARGET=re.compile(r'(?im)(?:^|\n)\s*(?:now\s+)?(?:question|problem|task)\s*2\s*[:.\-–]|\b(?:now|next|then|moving on|turn(?:ing)? to|let.s (?:do|solve|address))[^\n]{0,70}\b(?:question|problem|task)\s*2\b')
 TO_WARMUP=re.compile(r'(?im)(?:^|\n)\s*(?:now\s+)?(?:question|problem|task)\s*3\s*[:.\-–]|\b(?:now|next|then|moving on|turn(?:ing)? to|let.s (?:do|solve|address))[^\n]{0,70}\b(?:question|problem|task)\s*3\b')
 ARITHMETIC=re.compile(r'17\s*\+\s*23|seventeen plus twenty|question\s*3',re.I)
