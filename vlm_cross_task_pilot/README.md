@@ -47,3 +47,42 @@ Primary contrast: paired Q2 accuracy(joint_vt) minus Q2 accuracy(image_q2). Inte
 Reproduction notes: original Idis Q1 base prompt and 512x512 preprocessing, T=0.7/top-p=0.95, but the default pilot uses 1 generation (paper used 5). Inference uses transformers rather than vLLM. MATH-500 verification may require manual review for symbolic answers.
 
 Datasets: https://huggingface.co/datasets/Vail-2000/Idis ; https://huggingface.co/datasets/openai/gsm8k ; https://huggingface.co/datasets/HuggingFaceH4/MATH-500.
+
+## Image-of-text Q1 control: 17 + 23 = ?
+
+Image asset: [assets/q1_text_17_plus_23.png](assets/q1_text_17_plus_23.png). Its equivalent textual Q1 is **17 + 23 = ?**; gold answer **40**.
+
+This standalone modality-control experiment holds the SAME official GSM8K or MATH-500 reasoning Q2 fixed across every condition. It does not modify the original Idis experiment above.
+
+Run on RunPod (CUDA PyTorch and internet are required):
+
+```bash
+git pull origin main
+cd vlm_cross_task_pilot
+MODE=image_text BENCHMARK=gsm8k PAIRS=8 bash run_runpod.sh
+# Harder official questions (MATH-500 level >=3):
+MODE=image_text BENCHMARK=math500 PAIRS=12 bash run_runpod.sh
+# Increase repetitions:
+MODE=image_text BENCHMARK=math500 PAIRS=12 SAMPLES=5 bash run_runpod.sh
+```
+
+Alternatively run `bash run_image_text_control.sh` directly. Use `OUT=pilot_new` for a fresh output directory; same directory resumes the existing manifest and predictions.
+
+| Condition | Image included | Tasks |
+|---|---|---|
+| `q2_only` | No | Q2 only |
+| `text_q1_q2` | No | Written equation Q1 + Q2 |
+| `image_q2_only` | Yes | Attached image, but Q2 only |
+| `image_text_q1_q2` | Yes | Written equation Q1 + Q2, image also included |
+| `image_q1_q2` | Yes | Must read equation from image, then solve Q2 |
+| `image_q1_only` / `text_q1_only` | Yes / No | Single-task Q1 sanity checks |
+
+Optional order controls: `image_q2_q1` and `text_q2_q1`, enabled via `CONDITIONS`.
+
+Outputs in `pilot_image_text_gsm8k/` or `pilot_image_text_math500/`: `questions.jsonl` (frozen paired Q2 set), `predictions.jsonl` (raw generations), `summary.csv`, `scored.csv`, `paired_comparisons.csv`, `candidate_interference.csv` (control correct -> treatment incorrect). The Q1-only conditions run only once per repeat, not for every Q2.
+
+Primary comparisons: `image_q1_q2` vs `image_q2_only` (active visual Q1); `image_q1_q2` vs `image_text_q1_q2` (visual vs text Q1 with the SAME picture attached); `text_q1_q2` vs `q2_only` (multitasking baseline); `image_q2_only` vs `q2_only` (passive image presence). These measure behavioral changes, not causal neural mechanisms.
+
+Offline test: `python test_image_text_control.py`. To rescore, run `python run_image_text_q1_control.py --score-only --output-dir pilot_image_text_gsm8k`.
+
+Review truncated and badly formatted generations; the main Q1 is deliberately easy, serving as a text-vs-image control rather than a spatial-reasoning stress test.

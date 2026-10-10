@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
+# MODE=idis preserves the original Idis pilot.
+if [[ "${MODE:-idis}" == "image_text" ]]; then
+  exec bash run_image_text_control.sh
+fi
 # Precondition: RunPod has CUDA PyTorch installed (avoid overwriting it)
 python -m pip install -r requirements_pilot.txt
 BENCHMARK="${BENCHMARK:-gsm8k}"
