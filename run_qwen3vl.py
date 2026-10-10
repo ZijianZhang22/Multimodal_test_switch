@@ -30,18 +30,21 @@ LABELS = [
 ]
 
 
-def parse_label(text):
+def parse_label(text, reasoning_mode="direct"):
     normalized = text.upper().strip()
 
-    # Short-CoT mode is instructed to end with "FINAL: <LABEL>".
-    # Prefer that explicit final answer so direction words mentioned in the
-    # reasoning do not get mistaken for the prediction.
     final_match = re.search(
         r"FINAL\s*:\s*(NORTHEAST|NORTHWEST|SOUTHEAST|SOUTHWEST|NORTH|SOUTH|EAST|WEST|SAME)\b",
         normalized,
     )
     if final_match:
         return final_match.group(1)
+
+    # In short-CoT mode, never score an intermediate direction word as the
+    # answer. If FINAL is missing (usually because generation was truncated),
+    # mark the prediction invalid instead.
+    if reasoning_mode == "short_cot":
+        return None
 
     # Backward-compatible direct-answer parsing.
     for label in LABELS:
@@ -100,8 +103,9 @@ def build_messages(example, data_dir, reasoning_mode="direct"):
         )
     else:
         answer_instruction = (
-            "Use a very short scratchpad to solve the chain. "
-            "Keep the reasoning to at most TWO short lines and under about 40 words. "
+            "Use ONE compact scratchpad line only. Do not restate the evidence. "
+            "Track the net displacement symbolically, for example: "
+            "E + N + W + S = (0,0). "
             "Then end with exactly: FINAL: <LABEL>, where <LABEL> is one of "
             "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
             "SOUTHEAST, SOUTHWEST, SAME."
@@ -390,7 +394,10 @@ def main():
                 clean_up_tokenization_spaces=False,
             )[0].strip()
 
-            prediction = parse_label(output_text)
+            prediction = parse_label(
+                output_text,
+                reasoning_mode=args.reasoning_mode,
+            )
 
             record = {
                 **copy_metadata(example),
