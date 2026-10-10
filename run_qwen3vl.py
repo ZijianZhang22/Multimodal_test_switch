@@ -43,7 +43,7 @@ def parse_label(text, reasoning_mode="direct"):
     # In short-CoT mode, never score an intermediate direction word as the
     # answer. If FINAL is missing (usually because generation was truncated),
     # mark the prediction invalid instead.
-    if reasoning_mode in {"short_cot", "cot"}:
+    if reasoning_mode in {"short_cot", "cot", "coordinate_trace"}:
         return None
 
     # Backward-compatible direct-answer parsing.
@@ -107,6 +107,17 @@ def build_messages(example, data_dir, reasoning_mode="direct"):
             "Track the net displacement symbolically, for example: "
             "E + N + W + S = (0,0). "
             "Then end with exactly: FINAL: <LABEL>, where <LABEL> is one of "
+            "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
+            "SOUTHEAST, SOUTHWEST, SAME."
+        )
+    elif reasoning_mode == "coordinate_trace":
+        answer_instruction = (
+            "Use a compact coordinate scratchpad only; do not explain or restate "
+            "the evidence. Put the reference entity in the question at (0,0). "
+            "Follow the relation chain and write the coordinate of each successive "
+            "entity in one line, for example: TRACE: N1=(1,0); N2=(1,-1); "
+            "N3=(0,-1); N4=(0,0). Use east=+x, west=-x, south=+y, north=-y. "
+            "Then write exactly: FINAL: <LABEL>, where <LABEL> is one of "
             "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
             "SOUTHEAST, SOUTHWEST, SAME."
         )
@@ -245,6 +256,14 @@ def main():
         help="Optional comma-separated hop-count filter, e.g. 4,6,8.",
     )
     parser.add_argument(
+        "--visual_roles",
+        default=None,
+        help=(
+            "Optional comma-separated logical roles for single_visual examples, "
+            "e.g. 1,4. Text baselines are kept so matched comparisons remain available."
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -252,11 +271,12 @@ def main():
     )
     parser.add_argument(
         "--reasoning_mode",
-        choices=["direct", "short_cot", "cot"],
+        choices=["direct", "short_cot", "cot", "coordinate_trace"],
         default="direct",
         help=(
-            "direct: output one label only; short_cot: compact scratchpad; "
-            "cot: unrestricted step-by-step reasoning. CoT modes require FINAL: <LABEL>."
+            "direct: output one label only; short_cot: compact free-form scratchpad; "
+            "coordinate_trace: structured coordinate scratchpad; cot: unrestricted "
+            "step-by-step reasoning. Scratchpad/CoT modes require FINAL: <LABEL>."
         ),
     )
     parser.add_argument(
@@ -280,10 +300,16 @@ def main():
 
     data_dir = args.data.parent
     args.out.parent.mkdir(parents=True, exist_ok=True)
+    default_generation_caps = {
+        "direct": 16,
+        "short_cot": 48,
+        "coordinate_trace": 64,
+        "cot": 256,
+    }
     generation_max_new_tokens = (
         args.max_new_tokens
         if args.max_new_tokens is not None
-        else (48 if args.reasoning_mode == "short_cot" else 256 if args.reasoning_mode == "cot" else 16)
+        else default_generation_caps[args.reasoning_mode]
     )
     print(
         "Reasoning mode:",
@@ -330,6 +356,19 @@ def main():
             in wanted_hops
         ]
         print("Hop filter:", sorted(wanted_hops))
+
+    if args.visual_roles:
+        wanted_roles = {
+            int(x.strip())
+            for x in args.visual_roles.split(",")
+            if x.strip()
+        }
+        examples = [
+            ex for ex in examples
+            if ex.get("condition") != "single_visual"
+            or int(ex.get("visual_logical_step")) in wanted_roles
+        ]
+        print("Visual-role filter:", sorted(wanted_roles))
 
     if args.limit is not None:
         examples = examples[:args.limit]
