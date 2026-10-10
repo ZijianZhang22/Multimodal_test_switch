@@ -86,3 +86,41 @@ Primary comparisons: `image_q1_q2` vs `image_q2_only` (active visual Q1); `image
 Offline test: `python test_image_text_control.py`. To rescore, run `python run_image_text_q1_control.py --score-only --output-dir pilot_image_text_gsm8k`.
 
 Review truncated and badly formatted generations; the main Q1 is deliberately easy, serving as a text-vs-image control rather than a spatial-reasoning stress test.
+
+## Dual-image Q1 control: original Idis image plus arithmetic image
+
+This follow-up reuses the **same** local `pilot_math20/data/pairs.jsonl` from the MATH-500 pilot. No re-sampling or rewriting of Q2 or the Idis image.
+
+| Condition | Input images | Q1 | Q2 |
+|---|---|---|---|
+| `joint_text` | Original Idis image only | Written `17 + 23?` | Original MATH-500 text |
+| `joint_image_q1` | Original Idis AND equation PNG | Solve arithmetic in SECOND image | Identical MATH-500 text |
+
+Run on the SAME RunPod filesystem where `pilot_math20/data/pairs.jsonl` and its image files already exist:
+
+```bash
+git pull origin main
+cd vlm_cross_task_pilot
+python test_dual_image_q1_control.py
+bash run_dual_image_q1_control.sh
+```
+
+To reuse earlier matching text-Q1 outputs instead of recomputing them:
+
+```bash
+bash run_dual_image_q1_control.sh --reuse-text-file pilot_math20/results/text_q1_predictions.jsonl
+```
+
+Default: all existing 20 paired questions (or however many are in pairs.jsonl), Idis variant `conflicting`, temperature 0.7, top-p 0.95, 1 sample, 4096 generated tokens. Set `SAMPLES=5` for repeats. Use `--limit 3 --dry-run` to inspect input structure without GPU.
+
+Rescore existing predictions with:
+
+```bash
+python score_dual_image_q1_control.py --predictions pilot_math20_dual_image_q1/results/predictions.jsonl
+```
+
+Outputs under `pilot_math20_dual_image_q1/results/`: `predictions.jsonl`, `summary_dual_image_q1.csv`, `paired_summary_dual_image_q1.csv`, `paired_details_dual_image_q1.csv`, and `candidate_interference_dual_image_q1.csv`.
+
+Primary metric is Q2 accuracy in `joint_image_q1` minus that in `joint_text`, matched by image ID, exact Q2 ID, variant and repetition. Inspect both correct-to-wrong and wrong-to-correct flips, format failures, and truncation. This is a behavioral control, not proof of causal visual leakage.
+
+Unlike `run_image_text_q1_control.py`, which replaces the original Idis image with an arithmetic-only image, this new script retains Idis as image #1 and appends the arithmetic PNG as image #2.
