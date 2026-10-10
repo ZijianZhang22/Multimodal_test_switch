@@ -91,6 +91,22 @@ def build_messages(example, data_dir, reasoning_mode="direct"):
         return [{"role": "user", "content": content}]
 
     n_facts = len(example["facts"])
+
+    if reasoning_mode == "direct":
+        answer_instruction = (
+            "Answer with exactly ONE label from: "
+            "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
+            "SOUTHEAST, SOUTHWEST, SAME."
+        )
+    else:
+        answer_instruction = (
+            "Use a very short scratchpad to solve the chain. "
+            "Keep the reasoning to at most TWO short lines and under about 40 words. "
+            "Then end with exactly: FINAL: <LABEL>, where <LABEL> is one of "
+            "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
+            "SOUTHEAST, SOUTHWEST, SAME."
+        )
+
     content = [{
         "type": "text",
         "text": (
@@ -99,18 +115,7 @@ def build_messages(example, data_dir, reasoning_mode="direct"):
             "Each diagram shows only a spatial relation between two labeled nodes. "
             "The evidence items may not be presented in reasoning-chain order. "
             "Use the entity labels and all relevant facts to solve the final question.\n\n"
-            (
-                "Answer with exactly ONE label from: "
-                "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
-                "SOUTHEAST, SOUTHWEST, SAME."
-                if reasoning_mode == "direct"
-                else
-                "Use a very short scratchpad to solve the chain. "
-                "Keep the reasoning to at most TWO short lines and under about 40 words. "
-                "Then end with exactly: FINAL: <LABEL>, where <LABEL> is one of "
-                "NORTH, SOUTH, EAST, WEST, NORTHEAST, NORTHWEST, "
-                "SOUTHEAST, SOUTHWEST, SAME."
-            )
+            + answer_instruction
         ),
     }]
 
