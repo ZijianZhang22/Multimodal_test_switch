@@ -9,8 +9,16 @@ VARIANT="${VARIANT:-irrelevant}"
 N_DISTRACTORS="${N_DISTRACTORS:-4}"
 COUNT="${COUNT:-10}"
 SEED="${SEED:-42}"
+EXCLUSION_ARGS=()
+if [[ -n "${EXCLUDE_IDS_FILE:-}" ]]; then
+  EXCLUSION_ARGS+=(--exclude-ids-file "$EXCLUDE_IDS_FILE")
+fi
+if [[ -n "${EXCLUDE_MANIFEST:-}" ]]; then
+  EXCLUSION_ARGS+=(--exclude-manifest "$EXCLUDE_MANIFEST")
+fi
 python idis_math10/prepare.py --out "$OUT/data" --count "$COUNT" \
-  --variant "$VARIANT" --n-distractors "$N_DISTRACTORS" --seed "$SEED"
+  --variant "$VARIANT" --n-distractors "$N_DISTRACTORS" --seed "$SEED" \
+  "${EXCLUSION_ARGS[@]}"
 python idis_math10/run.py \
   --manifest "$OUT/data/manifest.jsonl" \
   --out "$OUT/results/predictions.jsonl" \

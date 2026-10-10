@@ -1,0 +1,27 @@
+{
+  "description": "Exact original 10 MathVerse source problems in completed Idis-math10 pilot. Exclude all variants of these problem_indices.",
+  "sample_indices": [
+    "763",
+    "1658",
+    "1008",
+    "1358",
+    "1188",
+    "3428",
+    "733",
+    "1303",
+    "2778",
+    "2863"
+  ],
+  "problem_indices": [
+    "153",
+    "332",
+    "202",
+    "272",
+    "238",
+    "686",
+    "147",
+    "261",
+    "556",
+    "573"
+  ]
+}

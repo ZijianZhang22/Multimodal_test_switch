@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Prepare 10 *distinct* MathVerse questions with EXISTING official Idis-math images.
+"""Prepare distinct MathVerse questions with existing official Idis-math images.
 
-Downloads only testmini.json, the selected official metadata, and 10 selected
-Idis-math images; never generates/edits a distractor.
+Downloads selected official images with optional exclusion of earlier MathVerse
+problem IDs (across all problem versions). Never generates/edits distractors.
 """
 import argparse
 import json
@@ -76,10 +76,39 @@ def priority(item):
     return 4
 
 
+def load_exclusions(ids_file=None, manifests=None):
+    """Load old sample IDs AND underlying problem IDs (across all versions)."""
+    samples, problems = set(), set()
+    if ids_file:
+        p = Path(ids_file).expanduser()
+        if not p.is_file():
+            raise FileNotFoundError(f"Exclusion file not found: {p}")
+        payload = json.loads(p.read_text(encoding="utf-8"))
+        samples |= {str(x) for x in payload.get("sample_indices", [])}
+        problems |= {str(x) for x in payload.get("problem_indices", [])}
+        if not samples and not problems:
+            raise ValueError(f"Exclusion file contains no IDs: {p}")
+    for fname in manifests or []:
+        p = Path(fname).expanduser()
+        if not p.is_file():
+            raise FileNotFoundError(f"Old manifest not found: {p}")
+        for r in load_jsonl(p):
+            if r.get("sample_index") is not None:
+                samples.add(str(r["sample_index"]))
+            if r.get("problem_index") is not None:
+                problems.add(str(r["problem_index"]))
+    return samples, problems
+
+
 def prepare(args):
     out = Path(args.out).expanduser().resolve()
     out.mkdir(parents=True, exist_ok=True)
     manifest = out / "manifest.jsonl"
+    denied_samples, denied_problems = load_exclusions(
+        args.exclude_ids_file, args.exclude_manifest
+    )
+    print(f"Excluding {len(denied_samples)} prior sample IDs and "
+          f"{len(denied_problems)} prior problem IDs", flush=True)
     if manifest.exists():
         rows = load_jsonl(manifest)
         if len(rows) != args.count:
@@ -87,6 +116,11 @@ def prepare(args):
         if any(r["variant"] != args.variant or r["n_distractors"] != args.n_distractors for r in rows):
             raise ValueError("Manifest variant/count mismatch; use a new OUT.")
         for row in rows:
+            if (str(row["sample_index"]) in denied_samples or
+                    str(row["problem_index"]) in denied_problems):
+                raise ValueError(
+                    f"Existing manifest overlaps excluded problems: {row['sample_index']}"
+                )
             if not Path(row["image"]).is_file():
                 raise FileNotFoundError(f"Previously downloaded image missing: {row['image']}")
         print(f"Reusing manifest with {len(rows)} identical image-question pairs: {manifest}", flush=True)
@@ -119,7 +153,8 @@ def prepare(args):
         if not question or not answer:
             continue
         problem_key = str(original.get("problem_index") or sid)
-        if sid in seen_samples or problem_key in seen_problems:
+        if (sid in seen_samples or problem_key in seen_problems
+                or sid in denied_samples or problem_key in denied_problems):
             continue
         remote = remote_filename(m, args.variant, args.n_distractors)
         if not remote:
@@ -164,6 +199,10 @@ def main():
     p.add_argument("--variant", choices=VARIANTS, default="irrelevant")
     p.add_argument("--n-distractors", type=int,choices=[1,2,3,4],default=4)
     p.add_argument("--seed",type=int,default=42)
+    p.add_argument("--exclude-ids-file", default=None,
+                   help="JSON of prior sample_indices and problem_indices")
+    p.add_argument("--exclude-manifest", action="append", default=[],
+                   help="Previous pilot JSONL manifest; may be specified repeatedly")
     a=p.parse_args()
     if a.count<1:p.error("count must be >= 1")
     prepare(a)

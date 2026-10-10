@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from prepare import remote_filename,priority
+from prepare import remote_filename,priority,load_exclusions
 from run import prompt_for,split_token_counts
 from score import auto_score,final_tag
 
@@ -15,6 +15,21 @@ class OfflineTest(unittest.TestCase):
         entry={'augmented':{'n4':'library/irrelevant/n4/Geometry/example.png'}}
         x=remote_filename(entry,'irrelevant',4)
         self.assertEqual(x,'Idis-math/visual_distractor/irrelevant/n4/Geometry/example.png')
+
+    def test_exclusions_prevent_old_problem_version(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            (folder / "old.json").write_text(json.dumps({
+                "sample_indices": ["763"],
+                "problem_indices": ["153", "332"]
+            }))
+            (folder / "old.jsonl").write_text(json.dumps({
+                "sample_index": "1008", "problem_index": "202"
+            }) + "\n")
+            samples, problems = load_exclusions(
+                folder / "old.json", [folder / "old.jsonl"])
+            self.assertEqual(samples, {"763", "1008"})
+            self.assertEqual(problems, {"153", "332", "202"})
 
     def test_prefix_only(self):
         q='In the diagram, determine the angle of ABC.'
