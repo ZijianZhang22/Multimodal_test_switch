@@ -162,6 +162,11 @@ def main():
     )
     parser.add_argument("--conditions", default=None)
     parser.add_argument("--visual_roles", default=None)
+    parser.add_argument(
+        "--schedules",
+        default=None,
+        help="Optional comma-separated exact modality schedules, e.g. TTTT,VTTT,TTTV.",
+    )
     parser.add_argument("--hops", default=None)
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--resume", action="store_true")
@@ -221,6 +226,15 @@ def main():
             if int(ex.get("hop_count", len(ex.get("facts", [])))) in wanted_hops
         ]
         print("Hop filter:", sorted(wanted_hops))
+
+    if args.schedules:
+        wanted_schedules = {
+            x.strip().upper() for x in args.schedules.split(",") if x.strip()
+        }
+        def _schedule(ex):
+            return ex.get("schedule") or ex.get("logical_schedule") or ex.get("presentation_schedule")
+        examples = [ex for ex in examples if _schedule(ex) in wanted_schedules]
+        print("Schedule filter:", sorted(wanted_schedules))
 
     if args.visual_roles:
         wanted_roles = {
