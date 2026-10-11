@@ -151,6 +151,15 @@ def main():
         choices=["bf16", "bfloat16", "fp16", "float16", "fp32", "float32"],
     )
     parser.add_argument("--max_new_tokens", type=int, default=16)
+    parser.add_argument(
+        "--device_map",
+        default="none",
+        choices=["none", "auto"],
+        help=(
+            "Use 'none' for a single sufficiently large GPU (recommended for 14B on 48GB). "
+            "Use 'auto' only when Accelerate sharding is actually needed."
+        ),
+    )
     parser.add_argument("--conditions", default=None)
     parser.add_argument("--visual_roles", default=None)
     parser.add_argument("--hops", default=None)
@@ -183,13 +192,20 @@ def main():
         torch_dtype=resolve_dtype(args.dtype),
         low_cpu_mem_usage=True,
         trust_remote_code=True,
-        device_map="auto",
         use_flash_attn=args.use_flash_attn,
     )
+    if args.device_map == "auto":
+        load_kwargs["device_map"] = "auto"
     if args.load_in_8bit:
         load_kwargs["load_in_8bit"] = True
+        if args.device_map == "none":
+            load_kwargs["device_map"] = "auto"
 
     model = AutoModel.from_pretrained(args.model, **load_kwargs).eval()
+    if args.device_map == "none" and not args.load_in_8bit:
+        if not torch.cuda.is_available():
+            raise RuntimeError("CUDA is required for the single-GPU InternVL run.")
+        model = model.cuda()
 
     examples = list(load_jsonl(args.data))
 
