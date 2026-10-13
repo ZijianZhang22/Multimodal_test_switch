@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Download a stratified, reasoning-only subset of the official MME-CoT test set."""
 import argparse
+import base64
 import json
 import random
 import re
@@ -22,16 +23,44 @@ def choices_from_row(row):
 
 
 def to_pil(value):
+    """Decode official MME-CoT images (base64 strings) or regular PIL/HF images.
+
+    MME-CoT uses a sequence of base64-encoded JPEG/PNG strings, NOT file paths.
+    Only short, existing local strings are interpreted as filesystem paths.
+    """
     if isinstance(value, Image.Image):
         return value.convert("RGB")
     if isinstance(value, dict):
         if value.get("bytes") is not None:
-            return Image.open(BytesIO(value["bytes"])).convert("RGB")
+            return to_pil(value["bytes"])
         if value.get("path"):
-            return Image.open(value["path"]).convert("RGB")
-    if isinstance(value, (str, Path)):
+            return to_pil(value["path"])
+        raise ValueError("Image dictionary contains neither bytes nor path")
+    if isinstance(value, (bytes, bytearray, memoryview)):
+        return Image.open(BytesIO(bytes(value))).convert("RGB")
+    if isinstance(value, Path):
         return Image.open(value).convert("RGB")
-    raise TypeError(f"Unsupported image payload: {type(value)}")
+    if isinstance(value, str):
+        data = value.strip()
+        if data.startswith("data:"):
+            if ";base64," not in data:
+                raise ValueError("Expected a base64 image data URI")
+            data = data.split(",", 1)[1]
+        # Avoid handing ~100 KB base64 strings to os.stat/open:
+        # this was the original source of OSError: File name too long.
+        if len(data) < 240:
+            path = Path(data)
+            if path.is_file():
+                return Image.open(path).convert("RGB")
+        try:
+            decoded = base64.b64decode(re.sub(r"\\s+", "", data), validate=True)
+            return Image.open(BytesIO(decoded)).convert("RGB")
+        except Exception as exc:
+            raise ValueError(
+                f"Cannot decode image as a Base64 image; "
+                f"input length={len(data)}, prefix={data[:24]!r}"
+            ) from exc
+    raise TypeError(f"Unsupported image payload type: {type(value).__name__}")
 
 
 def main():

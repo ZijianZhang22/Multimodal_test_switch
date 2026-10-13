@@ -36,4 +36,23 @@ assert pairs[0]["compression_pct"] == 40.0
 assert pairs[0]["arithmetic_correct"] is True
 summary = build_summary(pairs)
 assert next(x for x in summary if x["category"] == "ALL")["mc_baseline_accuracy"] == 1.0
+
+from io import BytesIO
+import base64
+from PIL import Image
+from prepare import to_pil
+
+_buffer = BytesIO()
+Image.new("RGB", (3, 2), (255, 0, 0)).save(_buffer, format="JPEG")
+_raw_image = _buffer.getvalue()
+_encoded_image = base64.b64encode(_raw_image).decode("ascii")
+for _payload in (
+    _encoded_image,
+    "data:image/jpeg;base64," + _encoded_image,
+    _raw_image,
+    {"bytes": _raw_image},
+):
+    _image = to_pil(_payload)
+    assert _image.size == (3, 2) and _image.mode == "RGB"
+
 print("OFFLINE SMOKE TEST PASSED")
