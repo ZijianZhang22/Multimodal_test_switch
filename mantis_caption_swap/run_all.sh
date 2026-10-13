@@ -11,7 +11,7 @@ python -u experiment.py prepare --n 50 --seed 42
 echo "===== GENERATE QUESTION-BLIND CAPTIONS ====="
 python -u experiment.py caption
 echo "===== EVALUATE ALL DISTINCT CONDITIONS ====="
-python -u experiment.py evaluate --max-new-tokens 1536
+python -u experiment.py evaluate --max-new-tokens 8192
 echo "===== SUMMARIZE ====="
 python -u experiment.py summarize
 echo "===== ALL COMPLETED ====="
