@@ -5,5 +5,7 @@ mkdir -p data results logs
 python - <<'PY'
 from huggingface_hub import list_repo_files
 files=list_repo_files("HarrytheOrange/MMRB",repo_type="dataset")
-print("Dataset repository files:",files[:30])
+print("Official dataset files:")
+for f in files:
+    if f.lower().endswith((".zip",".json",".parquet")): print(" ",f)
 PY
