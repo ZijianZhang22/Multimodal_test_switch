@@ -47,3 +47,23 @@ Logs/results: `logs/run.log`, `data/pilot/manifest.jsonl`, `results/captions.jso
 **Research caution:** This experiment measures modality substitution for physical image slots, not necessarily the step in a reasoning chain. A caption can drop task-critical information. Review paired examples/caption quality before making causal claims.
 
 **Status:** Code tested on synthetic examples; Mantis-Eval end-to-end GPU run is not yet verified.
+
+## Extend an ongoing 50-item pilot to ALL 217 Mantis-Eval questions
+
+**Wait until any previous `experiment.py evaluate` / caption process has stopped or finished.** Do not write the same results files with two inference processes at once. From the Pod:
+
+```bash
+cd /workspace/mantis_project
+git pull origin experiments/mantis-eval-caption-swap
+cd mantis_caption_swap
+python experiment.py selftest
+cp data/pilot/manifest.jsonl data/pilot/manifest_before_all.jsonl
+python -u experiment.py prepare --all --extend --seed 42
+wc -l data/pilot/manifest.jsonl   # Should be 217
+mkdir -p logs
+nohup bash -c 'set -e; python -u experiment.py caption; python -u experiment.py evaluate --max-new-tokens 8192; python -u experiment.py summarize; echo ALL_217_COMPLETED' > logs/all_217.log 2>&1 < /dev/null &
+echo $! > logs/all_217.pid
+tail -f logs/all_217.log
+```
+
+`--extend` retains the original 50 selected rows in their original order, image paths, captions, and completed QA records, and adds the other 167 records; `--all` selects every question in the dataset. The manifest is only replaced after new images are successfully materialized. Caption and QA generation skip saved nontruncated work; QA retries older truncated records when their cap was below 8192. If the original run is still active, **do not execute prepare or launch another evaluation** until it exits.
