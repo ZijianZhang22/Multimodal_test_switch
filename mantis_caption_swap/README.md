@@ -67,3 +67,13 @@ tail -f logs/all_217.log
 ```
 
 `--extend` retains the original 50 selected rows in their original order, image paths, captions, and completed QA records, and adds the other 167 records; `--all` selects every question in the dataset. The manifest is only replaced after new images are successfully materialized. Caption and QA generation skip saved nontruncated work; QA retries older truncated records when their cap was below 8192. If the original run is still active, **do not execute prepare or launch another evaluation** until it exits.
+
+## Token–accuracy analysis for the complete 217-item benchmark
+
+After the 217-item experiment finishes, run `python -u token_analysis.py`. Results:
+
+- `results/token_accuracy_summary.csv`: per-condition accuracy, mean/median/min/max generated tokens, differences versus All-V and a paired token-change versus correctness-change correlation, broken out by image count.
+- `results/paired_token_deltas.csv`: question-level token changes, flips, truncation status, and token ratios against All-V.
+- `results/token_accuracy_flips.csv`: counts and token delta distribution by correct→wrong / wrong→correct / same-correct / same-wrong transition.
+
+The **primary cohort excludes any question with a truncated generation in any condition**, so changing token limits does not silently bias condition comparisons. The all-complete cohort is also retained for diagnostic reference. Output token count includes all generated thinking plus final answer, not just the reasoning trace.
