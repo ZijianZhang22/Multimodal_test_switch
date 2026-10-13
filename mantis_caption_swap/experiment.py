@@ -267,11 +267,20 @@ def evaluate(args):
     manifest=require_manifest(args.manifest)
     captions={x["path"]:x["caption"] for x in read_jsonl(args.captions)
               if x.get("path") and x.get("caption")}
-    completed={(r["qid"],r["schedule"]) for r in read_jsonl(args.output)
-               if r.get("status")=="ok"}
+    previous={}
+    for record in read_jsonl(args.output):
+        if record.get("status")=="ok":
+            previous[record["qid"],record["schedule"]]=record
+    def needs_eval(qid,sch):
+        old=previous.get((qid,sch))
+        if old is None:return True
+        if not old.get("truncated"):return False
+        old_cap=int(old.get("max_new_tokens") or old.get("tokens") or 0)
+        return old_cap<args.max_new_tokens
     todo=[(q,s,aliases) for q in manifest for s,aliases in schedules(q["image_count"]).items()
-          if (q["qid"],s) not in completed]
-    print(f"Pending inference jobs={len(todo)}",flush=True)
+          if needs_eval(q["qid"],s)]
+    retries=sum(1 for q,s,_ in todo if (q["qid"],s) in previous)
+    print(f"Pending inference jobs={len(todo)} (retry truncated={retries}; cap={args.max_new_tokens})",flush=True)
     if not todo:return
     missing={path for q,s,_ in todo for i,path in enumerate(q["image_paths"])
              if s[i]=="T" and path not in captions}
@@ -292,6 +301,7 @@ def evaluate(args):
                   "category":q["category"],"reference":q["answer"],
                   "prediction":prediction,"correct":grade(prediction,q["answer"],q["options"]),
                   "raw_output":output,"tokens":tokens,"truncated":truncated,
+                  "max_new_tokens":args.max_new_tokens,
                   "seconds":round(time.monotonic()-start,2)}
             write_jsonl(args.output,item)
             print(f"[QA {count}/{len(todo)}] {q['qid']} {s} "
@@ -384,7 +394,7 @@ def main():
     p.add_argument("--output",default="results/predictions.jsonl")
     p.add_argument("--errors",default="results/errors.jsonl")
     p.add_argument("--model",default="Qwen/Qwen3-VL-8B-Thinking")
-    p.add_argument("--max-new-tokens",type=int,default=1536)
+    p.add_argument("--max-new-tokens",type=int,default=8192)
     p.set_defaults(func=evaluate)
     p=commands.add_parser("summarize")
     p.add_argument("--manifest",default="data/pilot/manifest.jsonl")
