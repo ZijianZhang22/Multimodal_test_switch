@@ -146,7 +146,9 @@ def main():
             if not line.strip():
                 continue
             rec = json.loads(line)
-            if rec.get("stop_reason") == "model_eos":
+            if (rec.get("stop_reason") == "model_eos"
+                    and rec.get("inference_version") == "single_generation_context_v1"
+                    and rec.get("thinking_tokens") is not None):
                 done.add((str(rec["id"]), rec["condition"]))
     print("Loading model:", args.model, flush=True)
     model = Qwen3VLForConditionalGeneration.from_pretrained(
@@ -181,6 +183,7 @@ def main():
                 "options": row.get("options", []),
                 "condition": condition,
                 "model": args.model,
+                "inference_version": "single_generation_context_v1",
                 "temperature": args.temperature,
                 "top_p": args.top_p,
                 "seed": per_pair_seed,
