@@ -68,21 +68,61 @@ def schedules(n):
     return out
 
 
+def plan_indices(size, target, seed, previous=None, extend=False):
+    """Preserve the prior 50-question pilot exactly; append only unseen dataset rows."""
+    if not 0 < target <= size:
+        raise ValueError(f"Requested {target} examples; dataset contains {size}")
+    old=previous or []
+    if old and not extend:
+        raise RuntimeError("Manifest exists. Use --extend to preserve earlier samples/results.")
+    if extend and not old:
+        raise RuntimeError("--extend requires an existing nonempty manifest")
+    old_ids=[r["source_index"] for r in old]
+    if len(old_ids)!=len(set(old_ids)):
+        raise RuntimeError("Existing manifest contains duplicate dataset rows")
+    if any(not isinstance(i,int) or i<0 or i>=size for i in old_ids):
+        raise RuntimeError("Existing manifest source_index is invalid")
+    if len(old_ids)>target:
+        raise RuntimeError(f"Cannot shrink manifest from {len(old_ids)} to {target} questions")
+    random_indices=list(range(size))
+    random.Random(seed).shuffle(random_indices)
+    existing_set=set(old_ids)
+    extra=[i for i in random_indices if i not in existing_set][:target-len(old_ids)]
+    return old_ids+extra
+
+
 def prepare(args):
+    import os
     from datasets import load_dataset
     ds=load_dataset(DATASET,split=SPLIT)
+    target=len(ds) if args.all else args.n
     print(f"Loaded {len(ds)} official {DATASET} questions; columns={ds.column_names}",flush=True)
-    if args.n>len(ds):
-        raise ValueError(f"Requested {args.n} examples; only {len(ds)} exist")
-    indices=random.Random(args.seed).sample(range(len(ds)),args.n)
     out=Path(args.output_dir)
     imgs_dir=out/"images"
     imgs_dir.mkdir(parents=True,exist_ok=True)
-    manifest=[]
-    image_counts=collections.Counter()
-    mismatch=0
-    total_schedules=0
-    for j,index in enumerate(indices,1):
+    manifest_path=out/"manifest.jsonl"
+    if manifest_path.exists():
+        if not args.extend:
+            raise RuntimeError(f"Manifest already exists at {manifest_path}. "
+                               "Use --extend to preserve the existing 50 and their results.")
+        previous=require_manifest(manifest_path)
+    else:
+        previous=[]
+        if args.extend:
+            raise RuntimeError("--extend requested, but manifest.jsonl does not exist")
+    for old in previous:
+        source_index=old["source_index"]
+        record=ds[source_index]
+        expected_qid=str(record.get("id") or f"test_{source_index}")
+        if old["qid"]!=expected_qid or old["image_count"]!=len(record["images"]):
+            raise RuntimeError(f"Original dataset changed for row {source_index}; refusing to reuse results")
+    indices=plan_indices(len(ds),target,args.seed,previous,extend=args.extend)
+    new_indices=indices[len(previous):]
+    manifest=list(previous)
+    image_counts=collections.Counter(x["image_count"] for x in previous)
+    mismatches=sum(not x.get("image_placeholders_matched",True) for x in previous)
+    print(f"Existing questions={len(previous)}, adding={len(new_indices)}, target={target}",flush=True)
+    for j,index in enumerate(new_indices,1):
         r=ds[index]
         question=r["question"]
         pictures=r["images"]
@@ -94,7 +134,6 @@ def prepare(args):
         for i,picture in enumerate(pictures):
             path=imgs_dir/f"{safe}_{index}_{i+1}.png"
             if not path.exists():
-                # HF Image feature yields decoded PIL objects. Preserve unaltered spatial content.
                 if isinstance(picture,dict) and picture.get("bytes") is not None:
                     import io
                     from PIL import Image
@@ -109,9 +148,9 @@ def prepare(args):
         marker_count=len(IMAGE_MARKER.findall(question))
         matched=marker_count==len(image_paths)
         if not matched:
-            mismatch+=1
-            print(f"WARNING {qid}: placeholders={marker_count} images={len(image_paths)}; using ordered prefix fallback",
-                  flush=True)
+            mismatches+=1
+            print(f"WARNING {qid}: placeholders={marker_count} images={len(image_paths)}; "
+                  "using ordered prefix fallback",flush=True)
         options=r.get("options") or []
         if not isinstance(options,(list,tuple)):
             raise TypeError(f"Unsupported options for {qid}: {type(options)}")
@@ -124,16 +163,25 @@ def prepare(args):
             "image_placeholders_matched":matched,
         })
         image_counts[len(image_paths)]+=1
-        total_schedules+=len(schedules(len(image_paths)))
-        print(f"[PREPARE {j}/{len(indices)}] {qid} images={len(image_paths)} conditions={len(schedules(len(image_paths)))}",
-              flush=True)
-    file=out/"manifest.jsonl"
-    with file.open("w",encoding="utf-8") as f:
+        print(f"[PREPARE {j}/{len(new_indices)}] {qid} images={len(image_paths)} "
+              f"conditions={len(schedules(len(image_paths)))}",flush=True)
+    ids=[r["qid"] for r in manifest]
+    if len(set(ids))!=len(ids):
+        raise RuntimeError("Duplicate qids detected; manifest left untouched")
+    if len(manifest)!=target:
+        raise RuntimeError(f"Expected {target}, got {len(manifest)}; manifest left untouched")
+    # Atomic replace avoids partial writes if interrupted.
+    tmp=out/"manifest.jsonl.tmp"
+    with tmp.open("w",encoding="utf-8") as f:
         for row in manifest:
             f.write(json.dumps(row,ensure_ascii=False)+"\n")
+    os.replace(tmp,manifest_path)
+    total_schedules=sum(len(schedules(r["image_count"])) for r in manifest)
     print("SELECTED:",len(manifest),"image-count distribution:",dict(sorted(image_counts.items())),flush=True)
-    print("QA generations planned:",total_schedules,"placeholder mismatches:",mismatch,flush=True)
-    print("Manifest:",file,flush=True)
+    print("QA generations planned:",total_schedules,
+          "previous results remain cached; placeholder mismatches:",mismatches,flush=True)
+    print("Manifest:",manifest_path,flush=True)
+
 
 
 def load_model(model_name,captioner=False):
@@ -360,6 +408,15 @@ def summarize(args):
 
 
 def selftest(_):
+    previous=[{"source_index":2},{"source_index":7}]
+    assert plan_indices(10,10,42,previous,extend=True)[:2]==[2,7]
+    assert len(set(plan_indices(10,10,42,previous,extend=True)))==10
+    try:
+        plan_indices(10,10,42,previous,extend=False)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("Must not overwrite pilot when --extend is missing")
     for n in (2,3,4,5):
         d=schedules(n)
         assert len(d)==n+2
@@ -381,6 +438,8 @@ def main():
     commands=parser.add_subparsers(dest="command",required=True)
     p=commands.add_parser("prepare")
     p.add_argument("--n",type=int,default=50);p.add_argument("--seed",type=int,default=42)
+    p.add_argument("--all",action="store_true",help="Select the entire dataset (217 questions)")
+    p.add_argument("--extend",action="store_true",help="Append missing questions, preserving existing pilot")
     p.add_argument("--output-dir",default="data/pilot")
     p.set_defaults(func=prepare)
     p=commands.add_parser("caption")
