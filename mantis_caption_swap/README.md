@@ -8,9 +8,8 @@ Uses the official [Mantis-Eval](https://huggingface.co/datasets/TIGER-Lab/Mantis
 - All-V = N original images.
 - All-T = N independent captions (no V tokens).
 - T_at_i = replace image i with caption, keeping the other N-1 originals.
-- V_at_i = keep only image i as an original, captioning all other images.
 
-For N=2, T_at_1 equals V_at_2, so identical schedules run just once; both labels appear in the summary. N=3 has 8 schedules; N=4 has 10, and N=5 has 12. **Total evaluation count depends on sampled image counts**, not necessarily 300.
+Each question runs **N+2** schedules: N=2 → 4, N=3 → 5, N=4 → 6, N=5 → 7. There are no keep-one-V experiments. **Total evaluation count depends on sampled image counts**.
 
 Captions use `llava-hf/llava-1.5-7b-hf`, fixed detailed description prompt from *Bridging the Missing-Modality Gap*, greedy decoding, max 200 tokens. QA default model `Qwen/Qwen3-VL-8B-Thinking` with greedy decoding and 1536 max new tokens. Caption generation and QA inference are different Python processes so the models are not loaded simultaneously.
 
