@@ -14,4 +14,5 @@ echo "===== EVALUATE ALL DISTINCT CONDITIONS ====="
 python -u experiment.py evaluate --max-new-tokens 8192
 echo "===== SUMMARIZE ====="
 python -u experiment.py summarize
+python -u token_analysis.py
 echo "===== ALL COMPLETED ====="
