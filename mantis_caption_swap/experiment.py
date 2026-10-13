@@ -2,8 +2,8 @@
 """Mantis-Eval paired variable-length image-to-caption swaps.
 
 Sample 50 from the complete 217-item test split, regardless of image count (2–5).
-For N images test all V, all T, one-at-a-time V->T, and one-at-a-time T->V.
-Deduplicate equivalent schedules (important for N=2).
+For N images test all V, all T, and one-at-a-time V->T only.
+Do not evaluate or summarize keep-one-V configurations.
 """
 import argparse
 import collections
@@ -50,8 +50,6 @@ def schedules(n):
     add("T"*n,"all_T")
     for i in range(n):
         add("V"*i+"T"+"V"*(n-i-1),f"T_at_{i+1}")
-    for i in range(n):
-        add("T"*i+"V"+"T"*(n-i-1),f"V_at_{i+1}")
     return out
 
 
@@ -307,7 +305,7 @@ def summarize(args):
             for schedule,aliases in schedules(q["image_count"]).items():
                 for alias in aliases:
                     groups[alias].append(results[q["qid"],schedule])
-        ordered=["all_V","all_T"]+[f"T_at_{i}" for i in range(1,6)]+[f"V_at_{i}" for i in range(1,6)]
+        ordered=["all_V","all_T"]+[f"T_at_{i}" for i in range(1,6)]
         for alias in ordered:
             rs=groups.get(alias)
             if not rs:continue
@@ -339,14 +337,14 @@ def summarize(args):
 def selftest(_):
     for n in (2,3,4,5):
         d=schedules(n)
-        assert len(d)==(4 if n==2 else 2*n+2)
+        assert len(d)==n+2
         assert len(set(d))==len(d)
         assert all(len(s)==n for s in d)
         assert len(d["V"*n])==1
         assert len(d["T"*n])==1
         for i in range(n):
             assert "T_at_"+str(i+1) in d["V"*i+"T"+"V"*(n-i-1)]
-            assert "V_at_"+str(i+1) in d["T"*i+"V"+"T"*(n-i-1)]
+    assert not any(label.startswith("V_at_") for aliases in d.values() for label in aliases)
     assert grade("Answer[C]","C",["(A) One","(B) Two","(C) Three"])
     assert not grade("Answer[A]","C",["(A) One","(B) Two","(C) Three"])
     assert grade("Answer[Yes]","yes",[])
