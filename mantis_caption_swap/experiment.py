@@ -39,6 +39,21 @@ def write_jsonl(path,record):
         f.write(json.dumps(record,ensure_ascii=False)+"\n")
 
 
+def require_manifest(path):
+    """Fail loudly instead of reporting 0 pending work as a successful experiment."""
+    p=Path(path)
+    if not p.is_file():
+        raise FileNotFoundError(
+            f"Manifest not found: {p}. Run: python -u experiment.py prepare --n 50 --seed 42")
+    manifest=read_jsonl(p)
+    if not manifest:
+        raise RuntimeError(
+            f"Manifest empty: {p}. Re-run prepare; no QA experiment has been performed.")
+    if any(not x.get("image_paths") for x in manifest):
+        raise RuntimeError("Manifest contains samples without images; inspect prepare output")
+    return manifest
+
+
 def schedules(n):
     """Return ordered dict: distinct V/T schedule -> all matching experimental labels."""
     if n<1:
@@ -152,7 +167,7 @@ def generate(model,processor,content,max_tokens):
 
 def caption(args):
     from PIL import Image
-    selected=read_jsonl(args.manifest)
+    selected=require_manifest(args.manifest)
     existing={x["path"]:x["caption"] for x in read_jsonl(args.output)
               if x.get("path") and x.get("caption")}
     images=list(dict.fromkeys(p for r in selected for p in r["image_paths"]))
@@ -249,7 +264,7 @@ def grade(answer,reference,options):
 
 
 def evaluate(args):
-    manifest=read_jsonl(args.manifest)
+    manifest=require_manifest(args.manifest)
     captions={x["path"]:x["caption"] for x in read_jsonl(args.captions)
               if x.get("path") and x.get("caption")}
     completed={(r["qid"],r["schedule"]) for r in read_jsonl(args.output)
@@ -289,7 +304,7 @@ def evaluate(args):
 
 
 def summarize(args):
-    manifest=read_jsonl(args.manifest)
+    manifest=require_manifest(args.manifest)
     results={(r["qid"],r["schedule"]):r for r in read_jsonl(args.predictions)
              if r.get("status")=="ok"}
     paired=[q for q in manifest if all((q["qid"],s) in results for s in schedules(q["image_count"]))]
