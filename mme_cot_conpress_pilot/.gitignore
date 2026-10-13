@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+pilot/
+pilot_*/
+pilot_data/
+pilot_results/
+results/
+data/images/
+*.parquet
+*.safetensors
