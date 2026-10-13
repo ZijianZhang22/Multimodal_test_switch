@@ -43,32 +43,34 @@ The model is NEVER instructed to compress. The 1+1 prompt is deliberately easy. 
 
 See `prompts.py` for the fully specified paired prompts.
 
-## No arbitrary output-length truncation
+## Practical long-output cap (default 16,384 tokens)
 
-Each item uses **one uninterrupted** `model.generate()` call. The generation
-budget is derived from the model's own architectural context limit:
-`max_position_embeddings - prompt_tokens`. For Qwen3-VL-8B-Thinking that
-architectural value is 262,144 tokens; we **do not** enforce any smaller
-user-defined output limit such as 1024, 2048 or 8192.
+Each example uses **one uninterrupted** `model.generate()` call. The default
+`MAX_NEW_TOKENS=16384` is deliberately much larger than the previous
+1,024-token chunk and is **a total response limit**, not a chunk size.
 
-The model generates until a natural EOS/chat turn end. If the model reaches
-its architectural limit **without EOS** (or encounters out-of-memory), the
-case is recorded as `generation_error`, excluded from scored results,
-and must never be mistaken for genuine compression. No re-prefilling,
-manual tensor-mask extensions, or cross-call Qwen M-RoPE continuation is
-used.
+```bash
+bash run_runpod.sh                             # default 16,384
+MAX_NEW_TOKENS=32768 bash run_runpod.sh        # allow especially long reasoning
+```
 
-A model and actual GPU have finite capacities: truly infinite output is not
-possible. Very long pathological CoTs can exhaust memory even below the
-model's theoretical context size.
+The effective token limit is `min(MAX_NEW_TOKENS, model_context - prompt_tokens)`.
+The model stops **early** when it emits natural EOS/chat-turn-end; there is no
+requirement that it use all 16k tokens. If it reaches the cap without EOS, its
+full generated text is retained in `predictions.jsonl` with
+`stop_reason=token_limit`, but the output is **not scored** and is **not
+treated as compression**. Such cases can be rerun using a larger cap, with
+previous EOS-complete outputs preserved. GPU memory/context remain finite.
 
+We do **not** use multiple manually re-prefilled generation calls, which
+previously caused Qwen3-VL M-RoPE shape errors.
 
 ## Files and measurements
 
 Output under `pilot/` (gitignored):
 
 - `data/pairs.jsonl` and `data/images/`: official questions/images, answers, categories and key-step annotations.
-- `results/predictions.jsonl`: **full generated outputs**, model thinking if present, exact raw output tokens, decoded readable response, finished EOS status, prompt, latency; append-only and resumable.
+- `results/predictions.jsonl`: **full generated outputs**, model thinking if present, exact raw output tokens, decoded readable response, finished EOS or token-limit status, prompt, latency; append-only and resumable.
 - `results/scored.csv`: parsed target final answer, simple arithmetic correctness, generation and thinking tokens.
 - `results/paired.csv`: **matched** baseline-vs-plus_arithmetic CoT token changes and outcome flips for the same item.
 - `results/summary.csv`: all-domain and per-category mean/median compression, token changes, multiple-choice correctness.

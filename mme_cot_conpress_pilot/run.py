@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Qwen3-VL paired MME-CoT inference, continuing in chunks until natural EOS.
+"""Qwen3-VL paired MME-CoT inference with configurable long output cap.
 
-Important: --chunk-tokens is NOT a limit on the total response length.
-When a chunk fills without EOS we append its token IDs and generate again.
-Generation ends only at the model's EOS, an exception, or user interruption.
+Each example uses one uninterrupted model.generate() call. Natural EOS
+completions are scored; length-capped outputs are saved but not scored.
 """
 import argparse
 import gc
@@ -17,7 +16,7 @@ from PIL import Image
 from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
 from prompts import build_prompt
-from resume_utils import model_context_budget, thought_stats
+from resume_utils import effective_generation_limit, completion_status, thought_stats
 
 
 def model_eos_ids(model, tokenizer):
@@ -53,30 +52,28 @@ def prepare_inputs(processor, row, prompt, device):
     return inputs.to(device)
 
 
-def generate_until_eos(model, processor, inputs, temperature, top_p):
-    """One uninterrupted generation; only the MODEL's context window is a limit.
+def generate_until_eos(model, processor, inputs, temperature, top_p, max_new_tokens):
+    """One uninterrupted generation, scoring only naturally terminated samples.
 
-    Unlike previous chunked versions, we never call generate() again with a
-    re-prefilled multimodal prefix. Qwen3-VL manages its own M-RoPE and KV
-    cache for the entire answer inside this single generation call.
-
-    We accept results ONLY if the model emits a natural EOS / chat turn end.
-    Reaching the architectural context limit is an explicit failure, not
-    compression and never counted as a completed result.
+    max_new_tokens is a configurable *total* output budget, not a chunk size.
+    Capped responses retain their raw text with stop_reason=token_limit and
+    are excluded from all accuracy/compression statistics.
     """
     tokenizer = processor.tokenizer
     eos = set(model_eos_ids(model, tokenizer))
     if not eos:
         raise RuntimeError("Cannot resolve EOS tokens; refusing incomplete generations.")
     prompt_tokens = int(inputs["input_ids"].shape[1])
-    context_tokens, remaining = model_context_budget(model, prompt_tokens)
+    context_tokens, allowed_tokens = effective_generation_limit(
+        model, prompt_tokens, max_new_tokens
+    )
     print(
-        f"    prompt={prompt_tokens}, model_context={context_tokens}; "
-        "single continuous generation until EOS (no short token cap)",
+        f"    prompt={prompt_tokens}, model_context={context_tokens}, "
+        f"max_new_tokens={allowed_tokens}; generating until EOS or cap",
         flush=True,
     )
     generation_kwargs = {
-        "max_new_tokens": remaining,  # physical context, NOT arbitrary truncation
+        "max_new_tokens": allowed_tokens,
         "do_sample": temperature > 0,
         "pad_token_id": (
             tokenizer.pad_token_id
@@ -91,16 +88,12 @@ def generate_until_eos(model, processor, inputs, temperature, top_p):
     with torch.inference_mode():
         output = model.generate(**inputs, **generation_kwargs)
     generated = output[0, prompt_tokens:].detach().cpu().tolist()
-    if not generated:
-        raise RuntimeError("Model returned no output tokens")
-    # Some completions may contain EOS before the last token if the backend
-    # appends padding, so detect natural termination within the output.
-    terminated = any(int(t) in eos for t in generated)
-    if not terminated:
-        raise RuntimeError(
-            "CONTEXT_LIMIT_REACHED: the model did not emit EOS before its "
-            f"architectural context limit ({context_tokens} tokens). "
-            "Excluded from completed results; this is NOT CoT compression."
+    status = completion_status(generated, eos, allowed_tokens)
+    if status != "model_eos":
+        print(
+            f"    WARNING: {status} after {len(generated)} tokens; "
+            "raw output saved, excluded from paired statistics",
+            flush=True,
         )
     return {
         "raw_output": tokenizer.decode(
@@ -112,9 +105,12 @@ def generate_until_eos(model, processor, inputs, temperature, top_p):
         "generation_tokens": len(generated),
         "prompt_tokens": prompt_tokens,
         "model_context_tokens": context_tokens,
+        "output_limit_tokens": allowed_tokens,
+        "requested_max_new_tokens": max_new_tokens,
+        "reached_output_limit": status == "token_limit",
         "generation_calls": 1,
         "seconds": round(time.monotonic() - started, 2),
-        "stop_reason": "model_eos",
+        "stop_reason": status,
     }
 
 
@@ -124,10 +120,15 @@ def main():
     ap.add_argument("--out", default="pilot_results/predictions.jsonl")
     ap.add_argument("--model", default="Qwen/Qwen3-VL-8B-Thinking")
     ap.add_argument("--conditions", default="baseline,plus_arithmetic")
+    ap.add_argument("--max-new-tokens", type=int, default=16384,
+                    help="Maximum generated tokens per case; default 16384. "
+                         "A response ending without EOS is saved but excluded.")
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--top-p", type=float, default=0.95)
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
+    if args.max_new_tokens < 1:
+        ap.error("--max-new-tokens must be positive")
     if not torch.cuda.is_available():
         raise SystemExit("Qwen3-VL-8B-Thinking requires a CUDA GPU. Please run on RunPod.")
 
@@ -156,7 +157,7 @@ def main():
     ).eval()
     processor = AutoProcessor.from_pretrained(args.model)
     count = len(examples) * len(conditions)
-    print(f"{count} cases, {len(done)} finished; one-shot generation until EOS (model context limit only).", flush=True)
+    print(f"{count} cases, {len(done)} finished; max_new_tokens={args.max_new_tokens}, natural EOS required to score.", flush=True)
     index = 0
     for row in examples:
         for condition in conditions:
@@ -184,6 +185,7 @@ def main():
                 "condition": condition,
                 "model": args.model,
                 "inference_version": "single_generation_context_v1",
+                "requested_max_new_tokens": args.max_new_tokens,
                 "temperature": args.temperature,
                 "top_p": args.top_p,
                 "seed": per_pair_seed,
@@ -194,7 +196,7 @@ def main():
                 inputs = prepare_inputs(processor, row, prompt, model.device)
                 record.update(generate_until_eos(
                     model, processor, inputs,
-                    args.temperature, args.top_p
+                    args.temperature, args.top_p, args.max_new_tokens
                 ))
                 thought_length, present = thought_stats(record["raw_output"], processor.tokenizer)
                 record["thinking_tokens"] = thought_length

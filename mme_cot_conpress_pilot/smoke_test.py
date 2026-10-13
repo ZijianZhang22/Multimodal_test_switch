@@ -59,10 +59,15 @@ for _payload in (
 # Context budget is derived from the model architecture, never an arbitrary
 # per-experiment cutoff. Invalid cases must not be counted as completions.
 from types import SimpleNamespace
-from resume_utils import model_context_budget, thought_stats
+from resume_utils import model_context_budget, effective_generation_limit, completion_status, thought_stats
 class _Mock:
     config = SimpleNamespace(text_config=SimpleNamespace(max_position_embeddings=262144))
 assert model_context_budget(_Mock(), 665) == (262144, 261479)
+assert effective_generation_limit(_Mock(), 665, 16384) == (262144, 16384)
+assert effective_generation_limit(_Mock(), 262140, 16384) == (262144, 4)
+assert completion_status([23, 42, 99], {99}, 16384) == "model_eos"
+assert completion_status([23, 42], {99}, 2) == "token_limit"
+assert completion_status([23, 42], {99}, 16384) == "generation_error"
 try:
     model_context_budget(_Mock(), 262144)
     raise AssertionError("Expected exhausted model context to raise")

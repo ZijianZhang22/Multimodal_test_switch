@@ -8,8 +8,8 @@ separate multimodal generation calls can misalign M-RoPE input masks.
 def model_context_budget(model, prompt_tokens):
     """Return (architectural_context, available_output_tokens).
 
-    There is no experimenter-defined max_new_tokens. All unspent model
-    context is available until EOS; the sample is invalid if exhausted.
+    Returns architecture-dependent capacity. The configured generation cap,
+    if any, is applied separately and cannot exceed this available capacity.
     """
     config = model.config
     text_config = getattr(config, "text_config", None)
@@ -25,6 +25,30 @@ def model_context_budget(model, prompt_tokens):
             f"model context limit {limit}"
         )
     return limit, available
+
+
+def effective_generation_limit(model, prompt_tokens, requested_max_new_tokens):
+    """Return (context_window, permitted_generation_tokens).
+
+    Keep the model's architectural context boundary authoritative; a
+    practical configurable cap avoids accidentally using hundreds of
+    thousands of output tokens on a long-running, non-terminating trace.
+    """
+    if not isinstance(requested_max_new_tokens, int) or requested_max_new_tokens < 1:
+        raise ValueError("--max-new-tokens must be a positive integer")
+    context_window, available = model_context_budget(model, prompt_tokens)
+    return context_window, min(available, requested_max_new_tokens)
+
+
+def completion_status(generated_ids, eos_ids, effective_max_new_tokens):
+    """Distinguish real natural termination from length-capped outputs."""
+    if not generated_ids:
+        raise ValueError("Model returned no output tokens")
+    if any(int(t) in eos_ids for t in generated_ids):
+        return "model_eos"
+    if len(generated_ids) >= effective_max_new_tokens:
+        return "token_limit"
+    return "generation_error"
 
 
 def thought_stats(raw, tokenizer):

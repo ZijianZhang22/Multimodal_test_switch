@@ -9,17 +9,18 @@ python smoke_test.py
 EXAMPLES="${EXAMPLES:-12}"
 PER_CATEGORY="${PER_CATEGORY:-2}"
 MODEL="${MODEL:-Qwen/Qwen3-VL-8B-Thinking}"
+MAX_NEW_TOKENS="${MAX_NEW_TOKENS:-16384}"
 OUT_DIR="${OUT_DIR:-pilot}"
 
 python prepare.py --out "${OUT_DIR}/data" --max-examples "$EXAMPLES" \
   --per-category "$PER_CATEGORY" --seed "${SEED:-42}" \
   --categories "${CATEGORIES:-all}"
 
-# One continuous generation per sample: only the model context window limits length.
+# One generation per sample, with generous configurable max output length.
 python run.py --data "${OUT_DIR}/data/pairs.jsonl" \
   --out "${OUT_DIR}/results/predictions.jsonl" \
   --temperature "${TEMPERATURE:-0}" --seed "${SEED:-42}" \
-  --model "$MODEL"
+  --max-new-tokens "$MAX_NEW_TOKENS" --model "$MODEL"
 
 python score.py --input "${OUT_DIR}/results/predictions.jsonl" \
   --out "${OUT_DIR}/results"
