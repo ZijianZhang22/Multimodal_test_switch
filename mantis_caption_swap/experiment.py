@@ -16,7 +16,6 @@ import time
 from pathlib import Path
 
 DATASET="TIGER-Lab/Mantis-Eval"
-CONFIG="mantis_eval"
 SPLIT="test"
 CAPTION_PROMPT=(
     "Describe this image in detail. Include information about the setting, objects, "
@@ -58,7 +57,7 @@ def schedules(n):
 
 def prepare(args):
     from datasets import load_dataset
-    ds=load_dataset(DATASET,CONFIG,split=SPLIT)
+    ds=load_dataset(DATASET,split=SPLIT)
     print(f"Loaded {len(ds)} official {DATASET} questions; columns={ds.column_names}",flush=True)
     if args.n>len(ds):
         raise ValueError(f"Requested {args.n} examples; only {len(ds)} exist")
