@@ -1,65 +1,30 @@
-"""Utilities for safely re-prefilling Qwen3-VL after a generation chunk.
+"""Helpers for Qwen3-VL-Thinking inference and token accounting.
 
-The processor returns mm_token_type_ids alongside input_ids for multimodal
-M-RoPE. When model.generate() returns longer input_ids, those modality ids
-MUST be extended by text-token (0) markers to the same sequence length.
+This experiment intentionally does NOT resume model.generate() in chunks:
+separate multimodal generation calls can misalign M-RoPE input masks.
 """
-import torch
 
 
-def extend_multimodal_inputs(work, completed):
-    """Append generated text to multimodal input tensors without losing image state.
+def model_context_budget(model, prompt_tokens):
+    """Return (architectural_context, available_output_tokens).
 
-    Args:
-        work: Last model.generate() kwargs, with input_ids, attention_mask,
-              image features, image_grid_thw, and mm_token_type_ids.
-        completed: model.generate() return [batch_size, total_tokens] including
-                   the previous input prefix and the new generated chunk.
+    There is no experimenter-defined max_new_tokens. All unspent model
+    context is available until EOS; the sample is invalid if exhausted.
     """
-    old_tokens = work["input_ids"]
-    if completed.ndim != 2 or old_tokens.ndim != 2:
-        raise ValueError("Expected 2D input_ids, batch x tokens")
-    if completed.shape[0] != old_tokens.shape[0]:
-        raise ValueError("Batch size changed during continuation")
-    if not torch.equal(completed[:, : old_tokens.shape[1]], old_tokens):
-        raise ValueError("Generated sequence does not preserve the original input prefix")
-    increment = completed.shape[1] - old_tokens.shape[1]
-    if increment <= 0:
-        raise ValueError("No tokens generated in the previous chunk")
-
-    mask = work["attention_mask"]
-    if mask.shape != old_tokens.shape:
-        raise ValueError(
-            f"attention_mask {tuple(mask.shape)} vs input_ids {tuple(old_tokens.shape)}"
+    config = model.config
+    text_config = getattr(config, "text_config", None)
+    limit = getattr(text_config, "max_position_embeddings", None)
+    if limit is None:
+        limit = getattr(config, "max_position_embeddings", None)
+    if not isinstance(limit, int) or limit <= 0:
+        raise RuntimeError("Cannot determine model's architectural context limit")
+    available = limit - int(prompt_tokens)
+    if available <= 0:
+        raise RuntimeError(
+            f"Input consumes {prompt_tokens} tokens, meeting/exceeding "
+            f"model context limit {limit}"
         )
-    appended_mask = torch.ones(
-        (old_tokens.shape[0], increment), dtype=mask.dtype, device=mask.device
-    )
-    new_work = dict(work)
-    new_work["input_ids"] = completed
-    new_work["attention_mask"] = torch.cat([mask, appended_mask], dim=1)
-
-    if "mm_token_type_ids" in work:
-        types = work["mm_token_type_ids"]
-        if types.shape != old_tokens.shape:
-            raise ValueError(
-                f"mm_token_type_ids {tuple(types.shape)} vs input_ids {tuple(old_tokens.shape)}"
-            )
-        text_types = torch.zeros(
-            (old_tokens.shape[0], increment), dtype=types.dtype, device=types.device
-        )
-        new_work["mm_token_type_ids"] = torch.cat([types, text_types], dim=1)
-    elif work.get("image_grid_thw") is not None:
-        raise ValueError(
-            "Missing mm_token_type_ids for image input; Qwen3-VL M-RoPE cannot continue."
-        )
-
-    if "position_ids" in work:
-        # M-RoPE position IDs should be recomputed from full input_ids and
-        # matching mm_token_type_ids by the model, not manually extended.
-        new_work.pop("position_ids")
-
-    return new_work
+    return limit, available
 
 
 def thought_stats(raw, tokenizer):

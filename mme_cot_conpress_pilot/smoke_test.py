@@ -56,38 +56,22 @@ for _payload in (
     assert _image.size == (3, 2) and _image.mode == "RGB"
 
 
-# Qwen3-VL resume regression: the new sequence and M-RoPE token types
-# MUST stay aligned after >1024 generated tokens, without altering visual inputs.
-import torch
-from resume_utils import extend_multimodal_inputs, thought_stats
-
-_original_work = {
-    "input_ids": torch.tensor([[11, 20, 21, 22]], dtype=torch.long),
-    "attention_mask": torch.tensor([[1, 1, 1, 1]], dtype=torch.long),
-    "mm_token_type_ids": torch.tensor([[0, 1, 1, 0]], dtype=torch.long),
-    "image_grid_thw": torch.tensor([[1, 1, 2]], dtype=torch.long),
-    "pixel_values": torch.zeros(2, 3),
-}
-_first = torch.cat([_original_work["input_ids"], torch.full((1, 1024), 33)], dim=1)
-_after_first = extend_multimodal_inputs(_original_work, _first)
-assert _after_first["input_ids"].shape == (1, 1028)
-assert _after_first["mm_token_type_ids"].shape == (1, 1028)
-assert _after_first["attention_mask"].shape == (1, 1028)
-assert torch.equal(_after_first["mm_token_type_ids"][:, :4], _original_work["mm_token_type_ids"])
-assert torch.all(_after_first["mm_token_type_ids"][:, 4:] == 0)
-assert _after_first["pixel_values"] is _original_work["pixel_values"]
-assert _original_work["input_ids"].shape == (1, 4)  # no mutation
-
-_second = torch.cat([_first, torch.full((1, 750), 34)], dim=1)
-_after_second = extend_multimodal_inputs(_after_first, _second)
-assert _after_second["mm_token_type_ids"].shape == (1, 1778)
+# Context budget is derived from the model architecture, never an arbitrary
+# per-experiment cutoff. Invalid cases must not be counted as completions.
+from types import SimpleNamespace
+from resume_utils import model_context_budget, thought_stats
+class _Mock:
+    config = SimpleNamespace(text_config=SimpleNamespace(max_position_embeddings=262144))
+assert model_context_budget(_Mock(), 665) == (262144, 261479)
+try:
+    model_context_budget(_Mock(), 262144)
+    raise AssertionError("Expected exhausted model context to raise")
+except RuntimeError:
+    pass
 
 class _FakeTokenizer:
     def encode(self, text, add_special_tokens=False):
         return text.split()
-
-# Actual Qwen3-VL-Thinking chat template places '<think>' in the PROMPT.
-# Generated text itself can therefore contain only the closing marker.
 assert thought_stats("Reasoning a bit more ... </think>Final", _FakeTokenizer()) == (5, True)
 assert thought_stats("<think>Step one step two</think>Final", _FakeTokenizer()) == (4, True)
 

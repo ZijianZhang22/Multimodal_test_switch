@@ -17,7 +17,7 @@ from PIL import Image
 from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
 from prompts import build_prompt
-from resume_utils import extend_multimodal_inputs, thought_stats
+from resume_utils import model_context_budget, thought_stats
 
 
 def model_eos_ids(model, tokenizer):
@@ -53,65 +53,69 @@ def prepare_inputs(processor, row, prompt, device):
     return inputs.to(device)
 
 
-def generate_until_eos(model, processor, inputs, chunk_tokens, temperature, top_p):
-    """Generate without a user-imposed total output token cap.
+def generate_until_eos(model, processor, inputs, temperature, top_p):
+    """One uninterrupted generation; only the MODEL's context window is a limit.
 
-    Recomputes the full prompt every chunk (simple, robust resume strategy).
-    Subject to finite hardware/model context; those limits are NOT silent truncation.
+    Unlike previous chunked versions, we never call generate() again with a
+    re-prefilled multimodal prefix. Qwen3-VL manages its own M-RoPE and KV
+    cache for the entire answer inside this single generation call.
+
+    We accept results ONLY if the model emits a natural EOS / chat turn end.
+    Reaching the architectural context limit is an explicit failure, not
+    compression and never counted as a completed result.
     """
     tokenizer = processor.tokenizer
     eos = set(model_eos_ids(model, tokenizer))
     if not eos:
-        raise RuntimeError("Cannot resolve EOS token IDs; refusing unbounded generation.")
-    all_generated = []
-    chunks = 0
+        raise RuntimeError("Cannot resolve EOS tokens; refusing incomplete generations.")
     prompt_tokens = int(inputs["input_ids"].shape[1])
-    work = dict(inputs)
+    context_tokens, remaining = model_context_budget(model, prompt_tokens)
+    print(
+        f"    prompt={prompt_tokens}, model_context={context_tokens}; "
+        "single continuous generation until EOS (no short token cap)",
+        flush=True,
+    )
+    generation_kwargs = {
+        "max_new_tokens": remaining,  # physical context, NOT arbitrary truncation
+        "do_sample": temperature > 0,
+        "pad_token_id": (
+            tokenizer.pad_token_id
+            if tokenizer.pad_token_id is not None else tokenizer.eos_token_id
+        ),
+        "eos_token_id": list(eos),
+    }
+    if temperature > 0:
+        generation_kwargs["temperature"] = temperature
+        generation_kwargs["top_p"] = top_p
     started = time.monotonic()
     with torch.inference_mode():
-        while True:
-            chunks += 1
-            generation_kwargs = {
-                "max_new_tokens": chunk_tokens,  # internal allocation, not total cap
-                "do_sample": temperature > 0,
-                "pad_token_id": tokenizer.pad_token_id or tokenizer.eos_token_id,
-                "eos_token_id": list(eos),
-            }
-            if temperature > 0:
-                generation_kwargs["temperature"] = temperature
-                generation_kwargs["top_p"] = top_p
-            output = model.generate(**work, **generation_kwargs)
-            past_length = int(work["input_ids"].shape[1])
-            new_ids = output[0, past_length:].detach().cpu().tolist()
-            if not new_ids:
-                raise RuntimeError("generate() returned 0 new tokens without EOS")
-            all_generated.extend(int(t) for t in new_ids)
-            if any(token_id in eos for token_id in new_ids):
-                return {
-                    "raw_output": tokenizer.decode(
-                        all_generated, skip_special_tokens=False,
-                        clean_up_tokenization_spaces=False
-                    ),
-                    "text_output": tokenizer.decode(
-                        all_generated, skip_special_tokens=True,
-                        clean_up_tokenization_spaces=False
-                    ),
-                    "generation_tokens": len(all_generated),
-                    "prompt_tokens": prompt_tokens,
-                    "chunks": chunks,
-                    "seconds": round(time.monotonic() - started, 2),
-                    "stop_reason": "model_eos",
-                }
-            print(
-                f"    chunk {chunks} complete: {len(all_generated)} output tokens, "
-                "no EOS — continuing (not truncated)",
-                flush=True,
-            )
-            # Keep visual tensors and M-RoPE modality masks aligned with the
-            # exact generated text IDs. A new generate() call re-prefills them.
-            work = extend_multimodal_inputs(work, output)
-            del output
-            # There is deliberately NO overall max token count here.
+        output = model.generate(**inputs, **generation_kwargs)
+    generated = output[0, prompt_tokens:].detach().cpu().tolist()
+    if not generated:
+        raise RuntimeError("Model returned no output tokens")
+    # Some completions may contain EOS before the last token if the backend
+    # appends padding, so detect natural termination within the output.
+    terminated = any(int(t) in eos for t in generated)
+    if not terminated:
+        raise RuntimeError(
+            "CONTEXT_LIMIT_REACHED: the model did not emit EOS before its "
+            f"architectural context limit ({context_tokens} tokens). "
+            "Excluded from completed results; this is NOT CoT compression."
+        )
+    return {
+        "raw_output": tokenizer.decode(
+            generated, skip_special_tokens=False, clean_up_tokenization_spaces=False
+        ),
+        "text_output": tokenizer.decode(
+            generated, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        ),
+        "generation_tokens": len(generated),
+        "prompt_tokens": prompt_tokens,
+        "model_context_tokens": context_tokens,
+        "generation_calls": 1,
+        "seconds": round(time.monotonic() - started, 2),
+        "stop_reason": "model_eos",
+    }
 
 
 def main():
@@ -120,14 +124,10 @@ def main():
     ap.add_argument("--out", default="pilot_results/predictions.jsonl")
     ap.add_argument("--model", default="Qwen/Qwen3-VL-8B-Thinking")
     ap.add_argument("--conditions", default="baseline,plus_arithmetic")
-    ap.add_argument("--chunk-tokens", type=int, default=1024,
-                    help="Per-call chunk size. NOT a total output limit; auto-continues.")
     ap.add_argument("--temperature", type=float, default=0.0)
     ap.add_argument("--top-p", type=float, default=0.95)
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
-    if args.chunk_tokens < 1:
-        ap.error("--chunk-tokens must be >= 1")
     if not torch.cuda.is_available():
         raise SystemExit("Qwen3-VL-8B-Thinking requires a CUDA GPU. Please run on RunPod.")
 
@@ -154,7 +154,7 @@ def main():
     ).eval()
     processor = AutoProcessor.from_pretrained(args.model)
     count = len(examples) * len(conditions)
-    print(f"{count} cases, {len(done)} finished; no overall output token cap.", flush=True)
+    print(f"{count} cases, {len(done)} finished; one-shot generation until EOS (model context limit only).", flush=True)
     index = 0
     for row in examples:
         for condition in conditions:
@@ -191,7 +191,7 @@ def main():
                 inputs = prepare_inputs(processor, row, prompt, model.device)
                 record.update(generate_until_eos(
                     model, processor, inputs,
-                    args.chunk_tokens, args.temperature, args.top_p
+                    args.temperature, args.top_p
                 ))
                 thought_length, present = thought_stats(record["raw_output"], processor.tokenizer)
                 record["thinking_tokens"] = thought_length

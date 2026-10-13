@@ -45,17 +45,23 @@ See `prompts.py` for the fully specified paired prompts.
 
 ## No arbitrary output-length truncation
 
-`run.py` deliberately has **no global max_new_tokens / max output count**. A generation call emits up to `--chunk-tokens` tokens (default 1024), and if the model has not emitted its real EOS, the script passes the complete accumulated token IDs back into generation and **continues**, repeatedly, until a natural model turn-end token. It does not count each full chunk as a completed response.
+Each item uses **one uninterrupted** `model.generate()` call. The generation
+budget is derived from the model's own architectural context limit:
+`max_position_embeddings - prompt_tokens`. For Qwen3-VL-8B-Thinking that
+architectural value is 262,144 tokens; we **do not** enforce any smaller
+user-defined output limit such as 1024, 2048 or 8192.
 
-This is slower than one-shot generation because the prompt/images are processed again for each chunk. Finite context limits and GPU memory still apply to any transformer; if the model exhausts those resources, the case is explicitly marked `generation_error`, NEVER silently scored as a completed truncated response. Use Ctrl+C to interrupt infinite/very lengthy reasoning.
+The model generates until a natural EOS/chat turn end. If the model reaches
+its architectural limit **without EOS** (or encounters out-of-memory), the
+case is recorded as `generation_error`, excluded from scored results,
+and must never be mistaken for genuine compression. No re-prefilling,
+manual tensor-mask extensions, or cross-call Qwen M-RoPE continuation is
+used.
 
-Change the internal chunk allocation size without imposing a total cap:
+A model and actual GPU have finite capacities: truly infinite output is not
+possible. Very long pathological CoTs can exhaust memory even below the
+model's theoretical context size.
 
-```bash
-CHUNK_TOKENS=2048 bash run_runpod.sh
-```
-
-`TEMPERATURE=0` is deterministic by default to limit stochastic noise in a paired comparison; use nonzero values and multiple independent runs for a future statistical study.
 
 ## Files and measurements
 
