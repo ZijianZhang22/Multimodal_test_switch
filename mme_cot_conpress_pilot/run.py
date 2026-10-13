@@ -17,6 +17,7 @@ from PIL import Image
 from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
 
 from prompts import build_prompt
+from resume_utils import extend_multimodal_inputs, thought_stats
 
 
 def model_eos_ids(model, tokenizer):
@@ -106,19 +107,11 @@ def generate_until_eos(model, processor, inputs, chunk_tokens, temperature, top_
                 "no EOS — continuing (not truncated)",
                 flush=True,
             )
-            # Re-use the unchanged visual tensors and append exact generated IDs.
-            work["input_ids"] = output
-            work["attention_mask"] = torch.ones_like(output, dtype=torch.long)
+            # Keep visual tensors and M-RoPE modality masks aligned with the
+            # exact generated text IDs. A new generate() call re-prefills them.
+            work = extend_multimodal_inputs(work, output)
             del output
             # There is deliberately NO overall max token count here.
-
-
-def thought_stats(raw, tokenizer):
-    """Thinking tokens measured by re-tokenizing the model's text inside think tags."""
-    if "<think>" not in raw or "</think>" not in raw:
-        return None, False
-    thinking = raw.split("<think>", 1)[1].split("</think>", 1)[0]
-    return len(tokenizer.encode(thinking, add_special_tokens=False)), True
 
 
 def main():
