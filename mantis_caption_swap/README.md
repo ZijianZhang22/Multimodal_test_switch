@@ -11,7 +11,7 @@ Uses the official [Mantis-Eval](https://huggingface.co/datasets/TIGER-Lab/Mantis
 
 Each question runs **N+2** schedules: N=2 → 4, N=3 → 5, N=4 → 6, N=5 → 7. There are no keep-one-V experiments. **Total evaluation count depends on sampled image counts**.
 
-Captions use `llava-hf/llava-1.5-7b-hf`, fixed detailed description prompt from *Bridging the Missing-Modality Gap*, greedy decoding, max 200 tokens. QA default model `Qwen/Qwen3-VL-8B-Thinking` with greedy decoding and 1536 max new tokens. Caption generation and QA inference are different Python processes so the models are not loaded simultaneously.
+Captions use `llava-hf/llava-1.5-7b-hf`, fixed detailed description prompt from *Bridging the Missing-Modality Gap*, greedy decoding, max 200 tokens. QA default model `Qwen/Qwen3-VL-8B-Thinking` with greedy decoding and 8192 max new tokens. Caption generation and QA inference are different Python processes so the models are not loaded simultaneously.
 
 ### New GPU Pod
 
@@ -29,7 +29,7 @@ Only if prepare reports SELECTED: 50, start caption+QA in the background:
 
 ```bash
 mkdir -p logs
-nohup bash -c 'set -e; python -u experiment.py caption; python -u experiment.py evaluate --max-new-tokens 1536; python -u experiment.py summarize' > logs/run.log 2>&1 < /dev/null &
+nohup bash -c 'set -e; python -u experiment.py caption; python -u experiment.py evaluate --max-new-tokens 8192; python -u experiment.py summarize' > logs/run.log 2>&1 < /dev/null &
 echo $! > logs/run.pid
 tail -f logs/run.log
 ```
