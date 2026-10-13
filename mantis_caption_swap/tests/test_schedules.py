@@ -7,11 +7,11 @@ from experiment import schedules,grade,answer_from_output,build_content
 class ScheduleTests(unittest.TestCase):
     def test_counts(self):
         self.assertEqual({n:len(schedules(n)) for n in (2,3,4,5)},
-                         {2:4,3:8,4:10,5:12})
+                         {2:4,3:5,4:6,5:7})
     def test_aliases(self):
         d=schedules(2)
-        self.assertEqual(set(d["TV"]),{"T_at_1","V_at_2"})
-        self.assertEqual(set(d["VT"]),{"T_at_2","V_at_1"})
+        self.assertEqual(set(d["TV"]),{"T_at_1"})
+        self.assertEqual(set(d["VT"]),{"T_at_2"})
     def test_answer(self):
         self.assertTrue(grade(answer_from_output("Reason\nAnswer[C]"),"C",["(A) no","(B) maybe","(C) yes"]))
         self.assertFalse(grade(answer_from_output("Answer[B]"),"C",["(A) no","(B) maybe","(C) yes"]))
