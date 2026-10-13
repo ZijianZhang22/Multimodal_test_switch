@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pandas as pd
 from scipy.stats import binomtest
+from statsmodels.stats.contingency_tables import cochrans_q
 
 SCHEDULES = ["TTVV", "TVTV", "TVVT", "VTTV", "VTVT", "VVTT"]
 
@@ -65,6 +66,17 @@ def main():
     wide = wide[SCHEDULES].dropna()
     wide.to_csv(args.out_dir / "matched_correctness_matrix.csv")
 
+    # Omnibus test: do any of the six matched schedules differ overall?
+    q = cochrans_q(wide[SCHEDULES].to_numpy())
+    omnibus = pd.DataFrame([{
+        "n_matched": len(wide),
+        "n_schedules": len(SCHEDULES),
+        "cochrans_q_statistic": float(q.statistic),
+        "df": len(SCHEDULES) - 1,
+        "p_value": float(q.pvalue),
+    }])
+    omnibus.to_csv(args.out_dir / "cochrans_q_overall.csv", index=False)
+
     rows = []
     for a, b in itertools.combinations(SCHEDULES, 2):
         ga = wide[a].astype(int)
@@ -92,6 +104,9 @@ def main():
 
     print("\n=== Accuracy by 2T/2V schedule ===")
     print(summary[["schedule", "correct", "n", "accuracy_pct"]].to_string(index=False))
+
+    print("\n=== Cochran's Q overall matched schedule test ===")
+    print(omnibus.to_string(index=False))
 
     print("\n=== Pairwise matched exact McNemar tests ===")
     show = pair.sort_values("holm_p")[
