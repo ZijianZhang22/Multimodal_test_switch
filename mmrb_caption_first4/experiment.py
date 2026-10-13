@@ -22,108 +22,143 @@ def add_jsonl(path,item):
     p=Path(path);p.parent.mkdir(parents=True,exist_ok=True)
     with open(p,"a",encoding="utf-8") as f:f.write(json.dumps(item,ensure_ascii=False)+"\n")
 
-def image_items(row):
-    """Ordered inputs only. Reject ambiguously arranged image data rather than guessing."""
-    for key in ("images","image_paths","image_list","image_files","image"):
-        v=row.get(key)
-        if isinstance(v,list) and v: return v,key
-    # Numbered image columns, sorted numerically.
-    numbered=[]
-    for k,v in row.items():
-        m=re.fullmatch(r"(?:image|img)[_\-]?(\d+)",k)
-        if m and v is not None: numbered.append((int(m[1]),v))
-    if numbered: return [v for _,v in sorted(numbered)],"numbered"
-    return [],"unknown"
+def open_official_archive(args):
+    """Use the official ZIP, NOT datasets.load_dataset's imagefolder auto-conversion."""
+    import zipfile
+    archive=Path(args.archive)
+    if not archive.is_file():
+        print("Downloading official MMRB 6GB archive; cached across runs:",archive,flush=True)
+        from huggingface_hub import hf_hub_download
+        archive=Path(hf_hub_download(repo_id=DATASET_ID,repo_type="dataset",
+            filename="data_MMRB_20250531.zip",local_dir=str(archive.parent)))
+    if not zipfile.is_zipfile(archive):
+        raise RuntimeError("Not a valid official MMRB ZIP: "+str(archive))
+    return zipfile.ZipFile(archive)
 
-def source_value(x):
-    if isinstance(x,dict):
-        if x.get("bytes") is not None:return x["bytes"]
-        if x.get("path"):return x["path"]
-        if x.get("image") is not None:return source_value(x["image"])
-    return x
 
-def materialize(image,output,roots):
-    """Save an HF decoded PIL image / bytes / existing path as PNG for deterministic reuse."""
-    from PIL import Image
-    x=source_value(image)
-    p=Path(output);p.parent.mkdir(parents=True,exist_ok=True)
-    if hasattr(x,"save"):
-        src=x
-    elif isinstance(x,bytes):
-        src=Image.open(io.BytesIO(x))
-    elif isinstance(x,str):
-        loc=Path(x)
-        if not loc.is_file():
-            found=[Path(root)/x for root in roots if (Path(root)/x).is_file()]
-            if not found: raise FileNotFoundError("Image path not resolved: "+repr(x))
-            loc=found[0]
-        src=Image.open(loc)
-    else:
-        raise TypeError("Unsupported HF image field: "+str(type(x)))
-    src.convert("RGB").save(p,format="PNG")
-    return str(p.resolve())
+def find_annotation(z):
+    """Find the actual task JSON, rather than treating each image as a QA row."""
+    names=[n for n in z.namelist() if not n.endswith("/")]
+    choices=[n for n in names if n.lower().endswith("mmrb_data.json")]
+    if not choices:
+        choices=[n for n in names if n.lower().endswith(".json")
+                 and any(t in n.lower() for t in ("annotation","mmrb","data"))]
+    for candidate in sorted(choices,key=lambda n:(not n.lower().endswith("mmrb_data.json"),len(n))):
+        print("Inspecting annotation:",candidate,flush=True)
+        try:
+            with z.open(candidate) as f: raw=json.load(f)
+            rows=raw if isinstance(raw,list) else (raw.get("data") or raw.get("questions") or raw.get("annotations"))
+            if isinstance(rows,list) and rows and isinstance(rows[0],dict):
+                if "question" in rows[0] and "image_paths" in rows[0]:
+                    return candidate,rows
+        except (ValueError,KeyError,UnicodeDecodeError,TypeError) as exc:
+            print("Not task annotations:",str(exc)[:150],flush=True)
+    print("Archive file examples:",names[:15],flush=True)
+    print("JSON candidates:",choices[:30],flush=True)
+    raise RuntimeError("Couldn't locate a list of MMRB question records with question and image_paths")
+
+
+def index_images(z):
+    """Match original paths exactly by suffix; fall back to basename only if unique."""
+    from collections import defaultdict
+    by_basename=defaultdict(list)
+    names=set()
+    for n in z.namelist():
+        if n.endswith("/"):continue
+        names.add(n)
+        by_basename[Path(n).name].append(n)
+    return names,by_basename
+
+
+def locate_image(path,archive_names,by_basename):
+    p=str(path).replace("\\","/").lstrip("./")
+    if not p or p.startswith("/") or ".." in Path(p).parts:
+        raise ValueError("Unsafe/empty image path: "+repr(path))
+    if p in archive_names: return p
+    found=[x for x in by_basename[Path(p).name] if x.endswith("/"+p)]
+    if len(found)==1:return found[0]
+    if len(found)>1: raise ValueError("Multiple matching archive paths for "+p)
+    fallback=by_basename[Path(p).name]
+    if len(fallback)==1:return fallback[0]
+    raise FileNotFoundError("Image path unavailable or ambiguous: "+p)
+
 
 def select(args):
-    from datasets import load_dataset,DatasetDict
-    print("Loading official HF dataset:",DATASET_ID,flush=True)
-    ds=load_dataset(DATASET_ID,"all")
-    print("Splits:",list(ds.keys()) if isinstance(ds,DatasetDict) else "single",flush=True)
-    if isinstance(ds,DatasetDict):
-        if "train" in ds: ds=ds["train"]
-        else: ds=next(iter(ds.values()))
-    print("Rows:",len(ds),"columns:",ds.column_names,flush=True)
-    print("First row field types:",{k:type(v).__name__ for k,v in ds[0].items()},flush=True)
-    rng=random.Random(args.seed)
-    ids=list(range(len(ds)));rng.shuffle(ids)
-    rows=[]; counts=collections.Counter();errors=collections.Counter();roots=[".",args.asset_root]
-    out=Path(args.output_dir);(out/"images").mkdir(parents=True,exist_ok=True)
-    for i in ids:
-        row=ds[i]
-        items,source=image_items(row);counts[len(items)]+=1
-        if len(items)<4:continue
-        if args.max_images and len(items)>args.max_images:continue
-        q=row.get("question") or row.get("query") or row.get("prompt")
-        if not isinstance(q,str) or not q.strip():errors["missing_question"]+=1;continue
-        opts=row.get("options") or row.get("choices") or []
-        if isinstance(opts,str):
-            try:opts=json.loads(opts)
-            except Exception:opts=[opts]
-        if isinstance(opts,dict):opts=[f"{k}. {v}" for k,v in opts.items()]
-        if not isinstance(opts,list):errors["bad_options"]+=1;continue
-        if any(not isinstance(o,(str,int,float)) for o in opts):
-            errors["non_text_options"]+=1;continue
-        answer=row.get("answer",row.get("golden_answer",row.get("correct_answer")))
-        if answer is None:errors["missing_answer"]+=1;continue
-        # Determine a stable identifier. The same question+image order is used in all conditions.
-        rid=f'{row.get("subtask",row.get("task","mmrb"))}_{row.get("index",i)}'
-        rid=re.sub(r"[^A-Za-z0-9_-]","_",str(rid))
-        imagepaths=[]
-        try:
-            for j,x in enumerate(items):
-                imagepaths.append(materialize(x,out/"images"/f"{rid}_{j+1}.png",roots))
-        except Exception as exc:
-            errors["unresolved_image"]+=1
-            print("SKIP",rid,str(exc)[:180],flush=True)
-            for p in imagepaths:Path(p).unlink(missing_ok=True)
-            continue
-        rows.append({"qid":rid,"dataset_index":i,"question":q,
-                     "options":[str(x) for x in opts],"answer":str(answer),
-                     "question_type":str(row.get("question_type","")),
-                     "subtask":str(row.get("subtask","")),
-                     "original_image_count":len(imagepaths),
-                     "image_paths":imagepaths,"caption_targets":imagepaths[:4],
-                     "source_image_column":source,
-                     "reasoning_steps_available":bool(row.get("reasoning_steps"))})
-        if len(rows)>=args.n:break
-    print("Observed image counts:",dict(sorted(counts.items())),flush=True)
-    print("Rejected reasons:",dict(errors),flush=True)
-    print("Selected:",len(rows),"requested:",args.n,flush=True)
-    if len(rows)<args.n:raise RuntimeError(
-        f"Only {len(rows)} eligible MMRB questions; please inspect schema and --max-images")
-    dest=out/"manifest.jsonl"
-    with open(dest,"w",encoding="utf-8") as f:
-        for r in rows:f.write(json.dumps(r,ensure_ascii=False)+"\n")
-    print("Manifest:",dest,flush=True)
+    from PIL import Image
+    from collections import Counter
+    with open_official_archive(args) as z:
+        ann,rows=find_annotation(z)
+        image_count=Counter()
+        for r in rows: image_count[len(r.get("image_paths") or [])]+=1
+        print("Official task annotations:",len(rows),"entry:",ann,flush=True)
+        print("Image-count distribution:",dict(sorted(image_count.items())),flush=True)
+        qualifying=sum(n for k,n in image_count.items() if k>=4 and (not args.max_images or k<=args.max_images))
+        print("Potential >=4 images within max limit:",qualifying,flush=True)
+        if qualifying<args.n:
+            raise RuntimeError(f"Only {qualifying} candidates, need {args.n}. Increase --max-images.")
+        names,by_basename=index_images(z)
+        ids=list(range(len(rows)));random.Random(args.seed).shuffle(ids)
+        out=Path(args.output_dir)
+        out.mkdir(parents=True,exist_ok=True)
+        (out/"images").mkdir(exist_ok=True)
+        selected=[];reasons=Counter();unique_ids=set()
+        for idx in ids:
+            r=rows[idx]
+            paths=r.get("image_paths") or []
+            if len(paths)<4 or (args.max_images and len(paths)>args.max_images):continue
+            question=r.get("question")
+            answer=r.get("answer")
+            if not isinstance(question,str) or not question.strip() or answer is None:
+                reasons["missing_question_or_answer"]+=1;continue
+            opts=r.get("options") or []
+            if isinstance(opts,str):
+                try: opts=json.loads(opts)
+                except json.JSONDecodeError:opts=[opts]
+            if isinstance(opts,dict):opts=[f"{k}. {v}" for k,v in opts.items()]
+            if not isinstance(opts,list) or any(not isinstance(v,(str,int,float)) for v in opts):
+                reasons["unsupported_options"]+=1;continue
+            rid=str(r.get("subtask","mmrb"))+"_"+str(r.get("index",idx))
+            rid=re.sub(r"[^A-Za-z0-9_-]","_",rid)
+            if rid in unique_ids:rid+=f"_row{idx}"
+            try:
+                locations=[locate_image(p,names,by_basename) for p in paths]
+            except (ValueError,FileNotFoundError) as exc:
+                reasons["image_not_found"]+=1
+                print("SKIP",rid,str(exc)[:150],flush=True);continue
+            output_paths=[]
+            try:
+                for j,zname in enumerate(locations):
+                    dest=out/"images"/f"{rid}_{j+1}.png"
+                    if not dest.exists():
+                        with z.open(zname) as f:
+                            img=Image.open(f).convert("RGB")
+                            img.save(dest,format="PNG")
+                    output_paths.append(str(dest.resolve()))
+            except Exception as exc:
+                reasons["image_decode_failed"]+=1
+                print("SKIP",rid,repr(exc)[:180],flush=True)
+                for p in output_paths:Path(p).unlink(missing_ok=True)
+                continue
+            unique_ids.add(rid)
+            selected.append({
+                "qid":rid,"dataset_index":idx,"question":question,
+                "options":[str(o) for o in opts],"answer":str(answer),
+                "question_type":str(r.get("question_type","")),
+                "subtask":str(r.get("subtask","")),
+                "original_image_count":len(output_paths),
+                "image_paths":output_paths,
+                "caption_targets":output_paths[:4],
+                "original_archive_image_paths":paths,
+                "reasoning_steps_available":bool(r.get("reasoning_steps"))})
+            if len(selected)==args.n:break
+    print("Rejected reasons:",dict(reasons),flush=True)
+    print("Selected:",len(selected),"requested:",args.n,flush=True)
+    if len(selected)<args.n:raise RuntimeError(f"Only {len(selected)} valid MMRB examples, need {args.n}")
+    manifest=out/"manifest.jsonl"
+    with manifest.open("w",encoding="utf-8") as f:
+        for row in selected:f.write(json.dumps(row,ensure_ascii=False)+"\n")
+    print("Manifest:",manifest,flush=True)
+
 
 def load_model(name,captioner=False):
     import torch
@@ -302,7 +337,7 @@ def main():
     p=commands.add_parser("prepare");p.add_argument("--n",type=int,default=50)
     p.add_argument("--seed",type=int,default=42)
     p.add_argument("--max-images",type=int,default=10,help="Limit total images to prevent OOM; 0 = no limit")
-    p.add_argument("--asset-root",default="data")
+    p.add_argument("--archive",default="data/data_MMRB_20250531.zip")
     p.add_argument("--output-dir",default="data/pilot")
     p.set_defaults(func=select)
     p=commands.add_parser("caption");p.add_argument("--manifest",default="data/pilot/manifest.jsonl")
