@@ -1,3 +1,5 @@
+> 历史研究计划：以下为原有分析与报告，数值未经本次整理重新计算。当前入口见 [README](README.md)，证据边界见 [结果状态](docs/STATUS.md)。
+
 # Revised Research Plan: Reasoning-Role-Dependent Multimodal Utilization
 
 **Status date:** 2026-10-05
