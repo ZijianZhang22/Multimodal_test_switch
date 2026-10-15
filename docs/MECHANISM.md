@@ -4,11 +4,11 @@
 
 | 工具 | 实际观测 / 干预 | 可以回答 | 不能单独证明 |
 |---|---|---|---|
-| [extract_internal_probe_states.py](../extract_internal_probe_states.py) | 输入 prefill 阶段 decoder hidden_states；事实边界与最后 prompt token | 不同层能否解码局部方向、累计坐标等标签 | encoder 是否丢失；生成 CoT 每一步如何变化 |
-| [train_internal_probes.py](../train_internal_probes.py) | 局部事实、精确状态、配对视觉减文本差分等 probe | 标签可读性与成功/失败的相关性 | 模型实际使用了 probe 可读信息；统一因果机制 |
-| [analyze_matched_state_decoding.py](../analyze_matched_state_decoding.py) | 配对样本、多 split 的分类与回归 | 匹配样本后的状态可读性对比 | 数据外泛化；已排除重复关系链泄漏 |
-| [run_layerwise_mechanism.py](../run_layerwise_mechanism.py) | decoder 逐层分析与最后 prompt 位置的 patching | 特定位置的替换是否改变回答 | 所有视觉信息的存储位置 |
-| [run_fact_level_patching.py](../run_fact_level_patching.py) | 事实边界 patching；matched / other-fact / unrelated 控制 | 是否存在选择性的局部回答改善 | 未改善即代表信息已丢失 |
+| [extract_internal_probe_states.py](../scripts/mechanism/extract_internal_probe_states.py) | 输入 prefill 阶段 decoder hidden_states；事实边界与最后 prompt token | 不同层能否解码局部方向、累计坐标等标签 | encoder 是否丢失；生成 CoT 每一步如何变化 |
+| [train_internal_probes.py](../scripts/mechanism/train_internal_probes.py) | 局部事实、精确状态、配对视觉减文本差分等 probe | 标签可读性与成功/失败的相关性 | 模型实际使用了 probe 可读信息；统一因果机制 |
+| [analyze_matched_state_decoding.py](../scripts/analysis/analyze_matched_state_decoding.py) | 配对样本、多 split 的分类与回归 | 匹配样本后的状态可读性对比 | 数据外泛化；已排除重复关系链泄漏 |
+| [run_layerwise_mechanism.py](../scripts/mechanism/run_layerwise_mechanism.py) | decoder 逐层分析与最后 prompt 位置的 patching | 特定位置的替换是否改变回答 | 所有视觉信息的存储位置 |
+| [run_fact_level_patching.py](../scripts/mechanism/run_fact_level_patching.py) | 事实边界 patching；matched / other-fact / unrelated 控制 | 是否存在选择性的局部回答改善 | 未改善即代表信息已丢失 |
 
 ## 现有流程
 
@@ -17,7 +17,7 @@
 3. 在相同失败样本上做 patching，并对比非匹配事实与无关样本控制。
 4. 联合报告可读性、干预后准确率、样本数量和选择规则。
 
-[run_internal_mechanism_suite.sh](../run_internal_mechanism_suite.sh) 是历史 Round-6 编排脚本：硬编码了 /workspace/Multimodal_test_switch，且标为 Optional 的 patching 步骤实际上仍会执行。使用前检查路径与预算，或直接逐条运行其中命令；本次整理未改变实验执行行为。
+[run_internal_mechanism_suite.sh](../scripts/launch/run_internal_mechanism_suite.sh) 是历史 Round-6 编排脚本，现已自动定位仓库根目录。标为 Optional 的 patching 步骤实际上仍会执行，使用前检查预算，或逐条运行其中命令。
 
 ## 下一步如何检验 encoder 假设
 

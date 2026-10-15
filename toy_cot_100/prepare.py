@@ -15,7 +15,7 @@ def main():
     a = p.parse_args()
     if a.n_problems < 1:
         p.error('n_problems must be positive')
-    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'generate_switching_dataset.py'), '--out_dir', str(a.out_dir), '--n_problems', str(a.n_problems), '--seed', str(a.seed), '--schedule_set', 'all16'], check=True)
+    subprocess.run([sys.executable, str(Path(__file__).resolve().parents[1] / 'scripts/data/generate_switching_dataset.py'), '--out_dir', str(a.out_dir), '--n_problems', str(a.n_problems), '--seed', str(a.seed), '--schedule_set', 'all16'], check=True)
     path = a.out_dir / 'examples.jsonl'
     rows = [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
     rows = [x for x in rows if x['schedule'] in SCHEDULES]
@@ -26,3 +26,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

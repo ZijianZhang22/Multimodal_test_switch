@@ -6,12 +6,12 @@
 
 | 实验 | 数据 / 条件 | 入口 |
 |---|---|---|
-| 四步全因子 | 同一 latent chain 的 16 种 T/V 分配 | [generate_switching_dataset.py](../generate_switching_dataset.py)、[run_qwen3vl.py](../run_qwen3vl.py)、[analyze_factorial_schedules.py](../analyze_factorial_schedules.py) |
+| 四步全因子 | 同一 latent chain 的 16 种 T/V 分配 | [generate_switching_dataset.py](../scripts/data/generate_switching_dataset.py)、[run_qwen3vl.py](../scripts/inference/run_qwen3vl.py)、[analyze_factorial_schedules.py](../scripts/analysis/analyze_factorial_schedules.py) |
 | CoT 100 题，1T3V | TTTT、TVVV、VTVV、VVTV、VVVT | [toy_cot_100/README.md](../toy_cot_100/README.md) |
-| Direct 500 题，3T1V | TTTT、VTTT、TVTT、TTVT、TTTV | [run_3t1v_500.sh](../run_3t1v_500.sh) |
-| 逻辑角色 × 呈现位置 | 改变事实的逻辑步骤与呈现顺序；含 perception control | [generate_role_position_dataset.py](../generate_role_position_dataset.py)、[analyze_role_position.py](../analyze_role_position.py)、[analyze_perception.py](../analyze_perception.py) |
-| 深度与显式轨迹 | hop 数、direct / short-CoT / coordinate trace 等设置 | [run_depth_scaling_model.sh](../run_depth_scaling_model.sh)、[run_4hop_shortcot_pilot.sh](../run_4hop_shortcot_pilot.sh)、[run_4hop_trace_control.sh](../run_4hop_trace_control.sh) |
-| 跨模型复现 | InternVL 与 Qwen runner | [run_internvl35.py](../run_internvl35.py)、[run_internvl14b_factorial_suite.sh](../run_internvl14b_factorial_suite.sh) |
+| Direct 500 题，3T1V | TTTT、VTTT、TVTT、TTVT、TTTV | [scripts/launch/run_3t1v_500.sh](../scripts/launch/run_3t1v_500.sh) |
+| 逻辑角色 × 呈现位置 | 改变事实的逻辑步骤与呈现顺序；含 perception control | [generate_role_position_dataset.py](../scripts/data/generate_role_position_dataset.py)、[analyze_role_position.py](../scripts/analysis/analyze_role_position.py)、[analyze_perception.py](../scripts/analysis/analyze_perception.py) |
+| 深度与显式轨迹 | hop 数、direct / short-CoT / coordinate trace 等设置 | [scripts/launch/run_depth_scaling_model.sh](../scripts/launch/run_depth_scaling_model.sh)、[scripts/launch/run_4hop_shortcot_pilot.sh](../scripts/launch/run_4hop_shortcot_pilot.sh)、[scripts/launch/run_4hop_trace_control.sh](../scripts/launch/run_4hop_trace_control.sh) |
+| 跨模型复现 | InternVL 与 Qwen runner | [run_internvl35.py](../scripts/inference/run_internvl35.py)、[scripts/launch/run_internvl14b_factorial_suite.sh](../scripts/launch/run_internvl14b_factorial_suite.sh) |
 
 100 题 CoT：
 
@@ -22,8 +22,8 @@ bash toy_cot_100/run_runpod.sh
 全因子数据生成入口：
 
 ```bash
-python generate_switching_dataset.py --out_dir data16 --n_problems 100 --seed 42 --schedule_set all16
-python run_qwen3vl.py --help
+python -m scripts.data.generate_switching_dataset --out_dir data16 --n_problems 100 --seed 42 --schedule_set all16
+python -m scripts.inference.run_qwen3vl --help
 ```
 
 空间链可能重复。配对分析按 latent problem 对齐；probe / 泛化评估还需检查相同关系链是否跨 train/test。仅按 problem_id 分组不能自动排除重复链泄漏。

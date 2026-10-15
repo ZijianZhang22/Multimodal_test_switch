@@ -9,8 +9,8 @@
 | 想做什么 | 入口 | 实验含义 |
 |---|---|---|
 | 重跑 100 题、CoT、TTTT 对 1T3V | [toy_cot_100](toy_cot_100/README.md) | 同一条四步空间链，改变唯一文本事实所在的逻辑步骤 |
-| 重跑 500 题、TTTT 对 3T1V | [run_3t1v_500.sh](run_3t1v_500.sh) | 唯一视觉事实所在步骤；与上一项是不同设计 |
-| 分离逻辑角色、呈现顺序、单事实感知 | [实验索引](docs/EXPERIMENTS.md) | 根目录原有 factorial / role-position / perception 工具 |
+| 重跑 500 题、TTTT 对 3T1V | [scripts/launch/run_3t1v_500.sh](scripts/launch/run_3t1v_500.sh) | 唯一视觉事实所在步骤；与上一项是不同设计 |
+| 分离逻辑角色、呈现顺序、单事实感知 | [实验索引](docs/EXPERIMENTS.md) | scripts/ 下的 factorial / role-position / perception 工具 |
 | 在真实多图问题上换 caption | [Mantis](mantis_caption_swap/README.md)、[MMQA](mmqa_four_image/README.md)、[MMRB](mmrb_caption_first4/README.md) | 图片槽位替换；槽位不等于推理步骤 |
 | 测额外任务与 token 开销 | [cross-task](vlm_cross_task_pilot/README.md)、[MME-CoT](mme_cot_conpress_pilot/README.md) | 联合任务、顺序与附加简单任务 |
 | 分析逐层表征、probe、activation patching | [机制分析说明](docs/MECHANISM.md) | 当前工具主要观测语言 decoder；不能直接定位 encoder 丢失 |
@@ -44,4 +44,27 @@ bash toy_cot_100/run_runpod.sh
 - token 减少只有结合准确率、截断率及配对样本才有意义；增加额外任务后的总 token 也不等于原任务独有开销。
 - 可以将各实验归于“证据表示如何影响推理的可靠性与开销”；目前尚不能据此认定统一机制、纯 switching cost 或 encoder 信息丢失。
 
-整理保留了原有脚本和目录路径；GPU 实验无需因为文档整理而重新运行。
+根目录 Python 与 shell 脚本已归入 scripts/；数据和结果目录位置保留。旧命令需按新路径更新，GPU 实验无需因目录整理重新运行。
+
+## 代码目录
+
+| 目录 | 内容 |
+|---|---|
+| scripts/data/ | toy 数据生成 |
+| scripts/inference/ | Qwen / InternVL 推理 |
+| scripts/analysis/ | 准确率、位置效应、token 与统计分析 |
+| scripts/mechanism/ | hidden states、probe、activation patching |
+| scripts/launch/ | 从仓库根目录运行实验的 shell 入口 |
+| toy_cot_100/ | 100 题 CoT 配对实验 |
+| mantis_caption_swap/、mmqa_four_image/、mmrb_caption_first4/ | 各 benchmark 的独立实验 |
+| vlm_cross_task_pilot/、mme_cot_conpress_pilot/ | 额外任务与 compression 实验 |
+| docs/ | 实验说明与历史记录 |
+
+Python 工具在仓库根目录通过模块运行，例如：
+
+```bash
+python -m scripts.inference.run_qwen3vl --help
+bash scripts/launch/run_3t1v_500.sh
+```
+
+完整旧路径到新路径的对照见 [迁移表](docs/SCRIPT_PATHS.md)。

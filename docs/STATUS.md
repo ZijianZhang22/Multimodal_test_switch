@@ -38,3 +38,9 @@ caption 生成成本应在端到端效率结论中单独计入；只比较 QA ou
 - “所有图文替换与多任务 compression 都来自同一个机制”。
 
 这些是待竞争检验的假设，而不是当前目录结构能够证明的事实。
+
+## 脚本归类后的验证
+
+根目录 37 个 Python / shell 文件已迁入 scripts/，同步更新导入、启动命令、toy generator 路径及文档。所有 Python 与 shell 语法、包内导入目标及 91 个当前文档链接检查通过；4 条链 / 20 个配对样本的 latent、examples 与图片字节和移动前一致。Mantis / MMQA 离线测试与 MMRB selftest 再次通过。
+
+当前整理环境缺少 torch，未验证模型加载或 GPU 推理。Python 工具从仓库根目录以 python -m scripts.… 执行；完整路径对照见 [迁移表](SCRIPT_PATHS.md)。

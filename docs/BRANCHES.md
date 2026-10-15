@@ -19,4 +19,4 @@ mmqa-one-vision-caption 指向历史 commit 3842e13ba9c1ecbf922e0fbecd81defc0004
 - [历史研究计划](../RESEARCH_PLAN.md)：保留原文并增加状态提示。
 - [当前实验索引](EXPERIMENTS.md)：作为现阶段入口。
 
-脚本、结果路径及已有分支没有重命名或删除。本次没有把 Pod 数据或模型权重加入 git。
+上述归入操作保留了分支文件路径。后续目录整理将根目录 Python / shell 脚本迁入 scripts/，见 [迁移表](SCRIPT_PATHS.md)；数据、结果目录与已有分支保留。没有把 Pod 数据或模型权重加入 git。

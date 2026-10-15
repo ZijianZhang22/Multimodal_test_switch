@@ -1,6 +1,6 @@
 # Four-hop toy: TTTT versus 1T3V, with CoT
 
-100 latent spatial-chain problems, each evaluated under **TTTT, TVVV, VTVV, VVTV, VVVT**: 500 generations total. The single text fact occupies logical step 1, 2, 3 or 4. Evidence order, latent relations, diagrams, questions and gold answers are matched across conditions. Uses the existing root `generate_switching_dataset.py`; this is the original toy, not a new benchmark. Seed 42 and the original approximately answer-balanced sampling are preserved (latent chains may repeat).
+100 latent spatial-chain problems, each evaluated under **TTTT, TVVV, VTVV, VVTV, VVVT**: 500 generations total. The single text fact occupies logical step 1, 2, 3 or 4. Evidence order, latent relations, diagrams, questions and gold answers are matched across conditions. Uses the existing `scripts/data/generate_switching_dataset.py`; this is the original toy, not a new benchmark. Seed 42 and the original approximately answer-balanced sampling are preserved (latent chains may repeat).
 
 ## Run from repository root
 
