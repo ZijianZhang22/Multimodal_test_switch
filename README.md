@@ -1,5 +1,7 @@
 # Multimodal Test Switch
 
+中文 | [English](README_EN.md)
+
 研究图文证据的形式、位置与额外任务如何影响 VLM 的回答准确率和生成开销，并用内部表征分析区分可能的机制。
 
 本仓库包含三条互相关联的实验线：**受控 toy → 真实 benchmark → 机制诊断**。额外任务 / compression 是另一类干预，应单独比较。
