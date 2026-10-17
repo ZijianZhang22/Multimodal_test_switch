@@ -66,3 +66,31 @@ Outputs at `paligemma2_cross_lingual_steering/outputs/<DATA NAME>/`:
 - `analysis_val/` and `analysis_test/` baseline, task accuracy, vector geometry and four-task macro.
 
 **Main limitations:** NLLB translations and SW anchors are unverified; Swahili 0% in an earlier pilot might be formatting/translation rather than incapacity. This method uses the original Mean Shift calculation, but exact prompt-language changes, per-language tokenization, translated multiple choice tasks, different dataset sizes and hyperparameter grids are intentional deviations from the original publication. Validate on English CVBench before interpreting language effect.
+
+## GPT-authored bilingual prompt dataset (840 items; 2026-10-17)
+
+Curated, deterministic EN/ZH/SW CV-Bench questions are checked into `curated_questions/*.jsonl.gz.b64` as four compressed plain-text shards, with 210 question records per task. Each shard contains the original English question and options, correct answer letter, and rewritten Chinese and Swahili question/option text. `curated_questions/objects.tsv` provides the 304-term object glossary used to build these translations. The translations are GPT-authored, **not** independently verified by a fluent Swahili-speaking reviewer; this is a controlled pilot dataset, not a certified benchmark translation.
+
+* Numbers are **never translated**: Count choices are the exact Arabic numerals in the English original.
+* Relation directional choices are fixed pairs: left/right = 左边/右边 = kushoto/kulia, above/below = 上方/下方 = juu/chini.
+* English option letters, correct answer, ordering, split, and sample IDs remain unchanged, including F on six-option questions.
+* Source text and colored-box referents are preserved in controlled task-specific templates. Terminology can still require native-speaker review.
+
+`run.sh` now automatically seeds the curated bilingual translation cache before dataset preparation (avoids downloading NLLB on a fresh pod), and applies the curated texts to an existing 840-sample cohort. An automatic preflight checks all sample IDs, source texts, answer letters, and choices. When applying to older data, the previous `predictions_*.csv`, settings, and analysis directories are archived under `outputs/.../legacy_runs/<timestamp>/`, not silently mixed with the new prompt protocol. Stored vectors remain reusable; these are *question translations*, not feature-extraction anchor modifications.
+
+```bash
+cd /workspace/Multimodal_test_switch
+git pull
+cd paligemma2_cross_lingual_steering
+
+# Check all curated 840 prompts on CPU; no downloads or GPU required:
+./.venv/bin/python test_curated.py
+
+# Smoke test with old data, using the corrected prompts; previous predictions archived
+INSTALL=0 FORCE_EXTRACT=0 LIMIT=3 LAYERS=8,12,16,20 \
+  ALPHAS=0.1,0.2,0.4,0.6,0.8,1.0 NORMALIZED=0 \
+  bash run_background.sh
+tail -f "$(cat logs/latest_log_path.txt)"
+```
+
+For the 240-row validation dataset, run `LIMIT=0` **only after** verifying that sample questions and answers parse correctly. Holdout Test should not be tuned on. Full 840 translations are *not* equivalent to official CV-Bench source language labels or official translation certification. To switch off translation auto-apply, set `CURATED_TRANSLATION=0`; avoid combining settings or results from the two translation protocols.
