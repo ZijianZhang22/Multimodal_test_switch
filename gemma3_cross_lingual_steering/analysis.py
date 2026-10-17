@@ -20,7 +20,10 @@ def write_csv(path, data):
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w",encoding="utf-8",newline="") as fp:
-        w=csv.DictWriter(fp,fieldnames=list(data[0]))
+        # Geometry records have different optional fields (e.g. "lang").
+        # Build a stable union of all keys instead of using only the first row.
+        columns=list(dict.fromkeys(key for row in data for key in row))
+        w=csv.DictWriter(fp,fieldnames=columns)
         w.writeheader()
         w.writerows(data)
 
