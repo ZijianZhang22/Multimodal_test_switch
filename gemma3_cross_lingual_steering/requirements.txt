@@ -1,0 +1,9 @@
+# Upstream's transformers build; preserve the RunPod CUDA torch installation.
+transformers==4.51.3
+accelerate>=1.5.2,<2
+pandas>=2.0,<3
+pillow>=10,<12
+numpy>=1.26,<3
+tqdm>=4.66,<5
+sentencepiece>=0.2
+pytest>=8
