@@ -1,0 +1,8 @@
+# Install a current Transformers release supporting Qwen3-VL (e.g. >=5.0).
+torch>=2.4
+transformers>=5.0,<6
+accelerate>=1.0
+pillow>=10.0
+numpy>=1.26
+tqdm>=4.66
+pytest>=8.0
