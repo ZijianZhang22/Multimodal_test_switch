@@ -49,7 +49,12 @@ print("Transformers",transformers.__version__,"CUDA",torch.cuda.get_device_name(
 PY
 
 if [[ ! -f "$DATA/visual_eval.jsonl" ]]; then
+  # Preseed the complete curated 840-item cohort; no NLLB translation needed.
+  "$PY" "$HERE/apply_curated.py" --data "$DATA" --seed-cache
   "$PY" "$CV/prepare.py" --data "$DATA" --n-val "$N_VAL" --n-test "$N_TEST" --seed "$SEED"
+fi
+if [[ "${CURATED_TRANSLATION:-1}" == "1" ]]; then
+  "$PY" "$HERE/apply_curated.py" --data "$DATA" --apply
 fi
 if [[ "$FORCE_EXTRACT" == "1" || ! -f "$DATA/vectors/manifest.json" ]]; then
   "$PY" "$HERE/vectors.py" --data "$DATA" --layers "$LAYERS"
