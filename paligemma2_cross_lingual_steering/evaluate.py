@@ -30,8 +30,8 @@ def parse_letter(text):
     s=str(text).strip()
     # Require a letter in an explicit answer context. Do not search arbitrary
     # prose (e.g. spelling "A" in a paragraph) for the first A-E character.
-    for pattern in [r'^\s*\(?([A-Ea-e])\)?(?=\W|$)',
-                    r'^(?:answer|option|choice|jibu|答案|选项)\s*[:：]?\s*\(?([A-Ea-e])\)?(?=\W|$)']:
+    for pattern in [r'^\s*\(?([A-Fa-f])\)?(?=\W|$)',
+                    r'^(?:answer|option|choice|jibu|答案|选项)\s*[:：]?\s*\(?([A-Fa-f])\)?(?=\W|$)']:
         m=re.search(pattern,s,re.I)
         if m:return m.group(1).upper()
     return ''
@@ -106,7 +106,7 @@ def run(data,split,layers,alphas,mask,limit,normalized,all_features,max_tokens):
                                 baseline_key=(s['id'],prompt_lang,'none','none','-1','0.0',mask,str(int(normalized)))
                                 need_baseline=baseline_key not in done
                                 result=wrappers[wk].generate_with_manipulation(
-                                    image=im,text_prompt="answer en " + s['questions'][prompt_lang],
+                                    image=im,text_prompt="answer en Answer the multiple choice question by only responding the letter of the correct answer. " + s['questions'][prompt_lang],
                                     masks=mask,max_new_tokens=max_tokens,do_sample=False,
                                     output_baseline=need_baseline,save_distribution_plot=False)
                                 if need_baseline:
