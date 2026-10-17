@@ -1,0 +1,12 @@
+{
+  "status": "CPU implementation checks passed; VLM GPU experiment not run",
+  "tests": [
+    "real tiny Qwen2 block intervention and KV cache",
+    "norm preservation and last-token-only edit",
+    "hook cleanup on success and exception",
+    "disjoint 100/30/100 problem groups",
+    "conservative final-answer scoring"
+  ],
+  "upstream_commit": "24fa054932efb5af0e5bd5b3ebb63e4ff97bff0d",
+  "gpu_available": false
+}

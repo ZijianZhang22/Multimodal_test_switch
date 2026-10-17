@@ -4,10 +4,8 @@ __pycache__/
 .venv/
 venv/
 .env
-
-data/
-results/
-analysis/
-
-.cache/
-huggingface/
+mrre_reproduction/data/
+mrre_reproduction/results/
+mrre_reproduction/upstream/
+*.pt
+*.safetensors
