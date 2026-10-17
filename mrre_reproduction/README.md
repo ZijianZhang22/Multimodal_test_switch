@@ -61,3 +61,30 @@ For a quick end-to-end GPU smoke run, prepare 4/2/2 groups into `smoke_data`, th
 ## Next experiment
 
 First compare baseline vs both on validation; use reason/anchor/random controls to interpret changes. Then test frozen settings on held-out questions. Keep an English baseline separately (`--language en --conditions baseline`). For visual dependence, add matched image/no-image/caption conditions as a separate extension rather than claiming this pilot already tests them.
+
+## RunPod one-click entry (recommended)
+
+Use a RunPod PyTorch CUDA GPU template. Default target is Qwen2.5-VL-7B; a 48 GB GPU and at least 40 GiB free disk are recommended starting resources, not measured peak requirements. CPU offload can make smaller GPUs slow. CUDA visibility is checked before downloading assets.
+
+```bash
+cd /workspace/Multimodal_test_switch/mrre_reproduction
+bash runpod_oneclick.sh
+```
+
+The entry point creates `/workspace/mrre-venv` with access to the template's installed PyTorch, installs remaining requirements, downloads the pinned upstream question metadata, downloads/extracts MathVerse images and model weights, verifies images, runs CPU implementation checks, then runs a real GPU smoke experiment (4 calibration + 2 validation) and the pilot (100 calibration + 30 validation). It preserves `/workspace/hf-cache` and `/workspace/mrre-runs/qwen25vl7b-zh`. Use a persistent RunPod volume mounted at `/workspace` if results must survive pod deletion.
+
+For only the initial GPU smoke experiment:
+
+```bash
+bash runpod_oneclick.sh --smoke-only
+```
+
+Then run without `--smoke-only` to reuse its completed stages and continue. Completed-stage reuse requires the same configuration and present outputs; an interrupted stage restarts from its beginning after preserving partial outputs. This is stage-level recovery, not per-example resume. Model downloads use Hugging Face's cache. Do not run two copies against the same run directory concurrently.
+
+Optional existing images: `--image-root /workspace/datasets/MathVerse`. Optional alternate experiment: `--run-dir /workspace/mrre-runs/experiment2`. Changing token budget, layer settings, or model requires a new run directory to avoid mixing results. Model overrides must still be Qwen2.5-VL-compatible and layer indices must fit the checkpoint.
+
+Inspect `smoke_validation.jsonl`, `pilot_validation.jsonl`, `.log` files and `run_config.json` in the run directory. Default generation cap is 2048; all truncated calibration pairs are excluded. Unparseable evaluation answers remain in the accuracy denominator as failures. The script prints unparsed/truncated counts and retains full responses. It does not claim official benchmark scores or measure language fidelity automatically.
+
+After freezing your settings using validation, run the generated `run_test_after_validation.sh` in the run directory for the held-out 100-question test. It is intentionally not auto-executed.
+
+Validation performed during development: shell syntax, CLI, CPU decoder tests, ZIP traversal rejection and image-root discovery. The GPU download/inference workflow remains unexecuted in the development environment (no GPU).

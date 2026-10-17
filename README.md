@@ -23,10 +23,9 @@ The previous contents are preserved byte-for-byte from commit `c5069df3e0ecd0fcd
 
 ```bash
 cd mrre_reproduction
-export IMAGE_ROOT=/workspace/datasets/MathVerse
-bash run_pod.sh
+bash runpod_oneclick.sh
 ```
 
-Download and extract MathVerse images first; IMAGE_ROOT must contain the paths referenced by the dataset, e.g. `images_version_1-4`. See [setup and methodological differences](mrre_reproduction/README.md).
+The one-click entry downloads model weights and MathVerse images, checks the environment, and runs a smoke experiment followed by calibration/validation. Use a GPU RunPod PyTorch CUDA template. See [setup and methodological differences](mrre_reproduction/README.md).
 
 Status: CPU implementation tests passed on a tiny randomly initialized Qwen2 decoder. Full Qwen2.5-VL GPU execution and paper accuracy reproduction have NOT been completed. This is an independent implementation, not the authors' unpublished core code.
