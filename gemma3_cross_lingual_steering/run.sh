@@ -24,26 +24,31 @@ if [[ "$actual" != "$REV" ]]; then
   exit 2
 fi
 
-if [[ "$INSTALL" == "1" ]]; then
-  python -m pip install -r requirements.txt
+if [[ ! -x .venv/bin/python ]]; then
+  python -m venv --system-site-packages .venv
 fi
-python - <<'PY'
-import transformers
+PYTHON=.venv/bin/python
+if [[ "$INSTALL" == "1" ]]; then
+  "$PYTHON" -m pip install -r requirements.txt
+fi
+"$PYTHON" - <<'PY'
+import torch, transformers
 assert transformers.__version__ == "4.51.3", (
-    f"Expected transformers==4.51.3, got {transformers.__version__}"
-)
-print("Using paper's Transformers version",transformers.__version__)
+    f"Expected upstream Transformers 4.51.3, got {transformers.__version__}")
+if not torch.cuda.is_available():
+    raise RuntimeError("CUDA-enabled PyTorch required in venv")
+print("Upstream runtime:", transformers.__version__, "CUDA:", torch.cuda.is_available())
 PY
 
 if [[ "$REBUILD_DATA" == "1" || ! -f "$DATA/corpus/counting_en.jsonl" || ! -f "$DATA/visual_eval.jsonl" ]]; then
-  python make_data.py --out "$DATA"
+  "$PYTHON" make_data.py --out "$DATA"
   FORCE_EXTRACT=1
 fi
 
 if [[ "$FORCE_EXTRACT" == "1" || ! -f "$DATA/vectors/manifest.json" ]]; then
-  python extract.py --data "$DATA" --layers "$LAYERS" --overwrite
+  "$PYTHON" extract.py --data "$DATA" --layers "$LAYERS" --overwrite
 fi
-python evaluate.py --data "$DATA" --split "$SPLIT" --layers "$LAYERS" \
+"$PYTHON" evaluate.py --data "$DATA" --split "$SPLIT" --layers "$LAYERS" \
   --alphas "$ALPHAS" --mask "$MASK" --limit "$LIMIT" --max-tokens "$MAX_TOKENS"
-python analysis.py --data "$DATA" --split "$SPLIT"
+"$PYTHON" analysis.py --data "$DATA" --split "$SPLIT"
 echo "DONE: $DATA/analysis_$SPLIT/paired_accuracy.csv"
