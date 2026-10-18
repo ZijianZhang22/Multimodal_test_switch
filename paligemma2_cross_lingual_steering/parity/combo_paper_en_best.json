@@ -1,0 +1,26 @@
+{
+  "count": {
+    "concept": "counting",
+    "variant": "en",
+    "layer": 9,
+    "alpha": 0.6
+  },
+  "relation": {
+    "concept": "spatial",
+    "variant": "en",
+    "layer": 5,
+    "alpha": 1
+  },
+  "depth": {
+    "concept": "spatial",
+    "variant": "en",
+    "layer": 11,
+    "alpha": 0.6
+  },
+  "distance": {
+    "concept": "spatial",
+    "variant": "en",
+    "layer": 8,
+    "alpha": 0.2
+  }
+}
