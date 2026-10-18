@@ -60,3 +60,18 @@ assert torch.equal(y[0,3],torch.ones(3))
 assert edits["tokens"]==2
 assert torch.equal(fake.language_model.model.layers[0](x),x)
 print("A/B CPU unit tests passed")
+
+# Different token IDs are an audit result, not an incompatibility error.
+from run_ab import compare_tokenizers
+class TinyTokenizer:
+    def __init__(self, offset):
+        self.offset=offset
+    def __call__(self, text, add_special_tokens=True):
+        ids=[ord(ch)+self.offset for ch in text]
+        return {"input_ids":([2+self.offset]+ids) if add_special_tokens else ids}
+    def decode(self, ids, skip_special_tokens=False, clean_up_tokenization_spaces=False):
+        return "".join(chr(n-self.offset) for n in ids)
+audit=compare_tokenizers(TinyTokenizer(0),TinyTokenizer(100),[("hello","你好")])
+assert audit["checked"]==2 and audit["full_token_ids_equal"]==0
+assert audit["source_roundtrip_changed"]==0 and audit["vlm_roundtrip_changed"]==0
+print("Tokenizer mismatch audit checks passed")
