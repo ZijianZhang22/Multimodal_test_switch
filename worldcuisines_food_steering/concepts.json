@@ -1,0 +1,22 @@
+[
+  {"sentence": "The photograph shows food on a table.", "target": "food"},
+  {"sentence": "They prepared food before the guests arrived.", "target": "food"},
+  {"sentence": "She described the food in the photograph.", "target": "food"},
+  {"sentence": "The market sells food throughout the day.", "target": "food"},
+  {"sentence": "We examined the ingredients in the bowl.", "target": "ingredients"},
+  {"sentence": "The label lists ingredients used in preparation.", "target": "ingredients"},
+  {"sentence": "He arranged a meal on the table.", "target": "meal"},
+  {"sentence": "The family shared a meal after work.", "target": "meal"},
+  {"sentence": "The book describes cuisine from many places.", "target": "cuisine"},
+  {"sentence": "We discussed cuisine during the visit.", "target": "cuisine"},
+  {"sentence": "The kitchen is used for cooking every day.", "target": "cooking"},
+  {"sentence": "They learned cooking by watching the demonstration.", "target": "cooking"},
+  {"sentence": "The dish has a distinctive texture.", "target": "dish"},
+  {"sentence": "She placed the dish in the center.", "target": "dish"},
+  {"sentence": "The recipe explains each step in order.", "target": "recipe"},
+  {"sentence": "He read the recipe before starting.", "target": "recipe"},
+  {"sentence": "The chef added seasoning near the end.", "target": "seasoning"},
+  {"sentence": "They compared the seasoning in two bowls.", "target": "seasoning"},
+  {"sentence": "The vegetables were placed beside the plate.", "target": "vegetables"},
+  {"sentence": "She selected vegetables from the basket.", "target": "vegetables"}
+]
