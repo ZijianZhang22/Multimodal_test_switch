@@ -59,6 +59,26 @@ def select_samples(rows, per_task):
             for s in (grouped[task][:per_task] if per_task else grouped[task])]
 
 
+def compose_vlm_prompt(sample, lang, demos):
+    """Keep the PaliGemma task prefix at position zero in ICL prompts.
+
+    Original paper-parity single-question prompt:
+        answer zh <instruction> <question>
+    For ICL, insert English demonstrations after the prefix/instruction and
+    before the target question, never before 'answer zh'.
+    """
+    baseline = build_prompt(sample, lang, "native")
+    if not demos:
+        return baseline
+    question = sample["prompts"][lang]
+    if not question or not baseline.endswith(question):
+        raise RuntimeError("PaliGemma prompt unexpectedly changed; cannot place demos")
+    prompt = baseline[:-len(question)] + "\n" + demos + question
+    if not prompt.startswith(f"answer {lang} "):
+        raise RuntimeError("PaliGemma task prefix must be at the beginning")
+    return prompt
+
+
 def compare_vectors(a, b, layers, filename):
     """Float32 cosine, norm, norm ratio for exactly corresponding decoder layers."""
     rows = []
@@ -208,7 +228,7 @@ def main():
               "lang": args.lang, "seed": args.seed, "k": args.k, "shots": args.shots,
               "extract_limit": args.extract_limit, "limit_val": args.limit_val,
               "limit_test": args.limit_test, "max_new_tokens": args.max_new_tokens,
-              "method_version": "kirtane_vlm_ab_v1"}
+              "method_version": "kirtane_vlm_ab_v2_prefix_first"}
     out.mkdir(parents=True, exist_ok=True)
     config_path = out / "config.json"
     if config_path.exists() and json.loads(config_path.read_text()) != config:
@@ -310,7 +330,7 @@ def main():
             with Image.open(data / sample["image"]) as original:
                 image = original.copy()
             demos = demos_text(splits["compute"], sample["task"], args.shots)
-            prompt = demos + build_prompt(sample, args.lang, "native")
+            prompt = compose_vlm_prompt(sample, args.lang, demos)
             for source, mask, layer, alpha in [("none", "baseline", -1, 0.0)] + grid:
                 answer, edited = generate(image, prompt, source, mask, layer, alpha)
                 scored = score(answer, sample["answer"], sample["choices"],
