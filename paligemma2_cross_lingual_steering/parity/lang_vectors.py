@@ -55,7 +55,7 @@ def main():
         mean={k:v/len(ext) for k,v in sums.items()}
         for language in langs:
             vec=mean['en']-mean[language]
-            obj={'vec':vec,'h_norm':norms[language]/len(ext),'h_norm_en':norms['en']/len(ext],
+            obj={'vec':vec,'h_norm':norms[language]/len(ext),'h_norm_en':norms['en']/len(ext),
                  'style':style,'lang':language,'definition':'EN minus LANG last prompt token'}
             for seed in seeds:
                 g=torch.Generator().manual_seed(seed)
