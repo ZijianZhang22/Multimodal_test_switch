@@ -23,7 +23,7 @@ def concepts_from(path):
     for g in obj['groups'] if g['prompt_lang']=='en' and g['variant']=='en' and g['concept']==chosen.get(g['task'],g['concept'])}
  return {t:{'variant':'en',**v} for t,v in obj.items()}
 def key(r):
- return tuple(str(r[k]) for k in FIELDS[:12] if k not in ('task','split'))
+ return tuple(str(r[k]) for k in ('id','prompt_lang','style','cond','lang_layer','lang_alpha','concept','concept_variant','concept_layer','concept_alpha'))
 def main():
  p=argparse.ArgumentParser()
  for name in ('data','out'):p.add_argument('--'+name,required=True,type=Path)
