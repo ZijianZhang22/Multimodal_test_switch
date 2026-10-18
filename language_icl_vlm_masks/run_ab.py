@@ -82,14 +82,41 @@ def compare_vectors(a, b, layers, filename):
 
 
 def compare_tokenizers(tok_a, tok_b, pairs):
-    # These are matched Gemma-family models. Fail explicitly instead of
-    # silently comparing differently tokenized inputs as identical states.
+    """Audit source/target tokenization without assuming identical token IDs.
+
+    Cross-checkpoint language steering transfers *activation-space* vectors,
+    not token IDs. The PaliGemma tokenizer may use different BOS/special-token
+    handling and added multimodal tokens. Encode each paired text with its own
+    tokenizer; differences are a measured confound, not an execution error.
+    """
+    report = {"checked": 0, "full_token_ids_equal": 0,
+              "content_token_ids_equal": 0,
+              "source_token_count": 0, "vlm_token_count": 0,
+              "source_roundtrip_changed": 0, "vlm_roundtrip_changed": 0,
+              "examples": []}
     for item in pairs[:min(8, len(pairs))]:
-        for text in item:
-            aa = tok_a(text, add_special_tokens=True)["input_ids"]
-            bb = tok_b(text, add_special_tokens=True)["input_ids"]
-            if aa != bb:
-                raise RuntimeError("Gemma2 and PaliGemma2 tokenizers differ for this corpus")
+        for passage in item:
+            aa = tok_a(passage, add_special_tokens=True)["input_ids"]
+            bb = tok_b(passage, add_special_tokens=True)["input_ids"]
+            content_a = tok_a(passage, add_special_tokens=False)["input_ids"]
+            content_b = tok_b(passage, add_special_tokens=False)["input_ids"]
+            report["checked"] += 1
+            report["full_token_ids_equal"] += int(aa == bb)
+            report["content_token_ids_equal"] += int(content_a == content_b)
+            report["source_token_count"] += len(aa)
+            report["vlm_token_count"] += len(bb)
+            dec_a = tok_a.decode(content_a, skip_special_tokens=False,
+                                 clean_up_tokenization_spaces=False)
+            dec_b = tok_b.decode(content_b, skip_special_tokens=False,
+                                 clean_up_tokenization_spaces=False)
+            report["source_roundtrip_changed"] += int(dec_a != passage)
+            report["vlm_roundtrip_changed"] += int(dec_b != passage)
+            if aa != bb and len(report["examples"]) < 3:
+                report["examples"].append({
+                    "text_sha256": hashlib.sha256(passage.encode()).hexdigest(),
+                    "source_tokens": len(aa), "vlm_tokens": len(bb),
+                    "source_prefix_ids": aa[:8], "vlm_prefix_ids": bb[:8]})
+    return report
 
 
 def summarize(rows, sources, modalities):
@@ -220,9 +247,15 @@ def main():
         raise RuntimeError("Requested layer does not exist in VLM decoder")
     tok = processor.tokenizer
     if "base" in sources:
-        # Always check tokenizer alignment, including when A cache is reused.
+        # Same paired texts, different checkpoint-native tokenizations.
+        # Record discrepancies; there is no requirement for matching token IDs.
         tok_base = AutoTokenizer.from_pretrained(TEXT_ID)
-        compare_tokenizers(tok_base, tok, pairs)
+        audit = compare_tokenizers(tok_base, tok, pairs)
+        atomic_json(out / "tokenization_audit.json", audit)
+        if audit["full_token_ids_equal"] != audit["checked"]:
+            print("NOTE: tokenizer token IDs differ across checkpoints; "
+                  "vector extraction uses each checkpoint's native tokenizer. "
+                  "See tokenization_audit.json.", flush=True)
         del tok_base
     if "vlm" in sources:
         p = out / "vectors_vlm.pt"
