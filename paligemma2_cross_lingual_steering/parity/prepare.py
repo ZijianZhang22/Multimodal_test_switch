@@ -14,7 +14,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from common import (CONCEPTS, LANGS, PKG, TASKS, UPSTREAM, Translator, jsonl_write,
+from common import (CONCEPTS, PROTOCOL_VERSION, LANGS, PKG, TASKS, UPSTREAM, Translator, jsonl_write,
                     render_prompt, split_prompt, upstream_split)
 
 SHARED = PKG.parent / 'gemma3_cross_lingual_steering'
@@ -120,7 +120,8 @@ def main():
         w.writerows(audit)
     (data / 'missing_terms.txt').write_text('\n'.join(sorted(tr.missing_terms)) + '\n', encoding='utf-8')
     (data / 'untemplated_questions.txt').write_text('\n'.join(sorted(tr.untemplated)) + '\n', encoding='utf-8')
-    manifest = {'source_dataset': 'nyu-visionx/CV-Bench', 'original_split': 'test',
+    manifest = {'protocol_version': PROTOCOL_VERSION,
+                'source_dataset': 'nyu-visionx/CV-Bench', 'original_split': 'test',
                 'split_protocol': 'upstream utils.load_cvbench_dataset (pandas sample frac=1, random_state=seed; test=last test_size)',
                 'seed': a.seed, 'test_size': a.test_size, 'n_tune': a.n_tune,
                 'counts': dict(Counter(f"{s['task']}_{s['split']}" for s in samples)),

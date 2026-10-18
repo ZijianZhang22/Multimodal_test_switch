@@ -62,6 +62,11 @@ if [[ ! -f "$DATA/visual_eval.jsonl" ]]; then
 else
   have="$("$PY" -c "import json;print(json.load(open('$DATA/dataset_manifest.json'))['n_tune'])")"
   [[ "$have" == "$N_TUNE" ]] || { echo "ERROR: $DATA was prepared with N_TUNE=$have; use a new DATA path"; exit 1; }
+  pv="$(cd "$HERE" && "$PY" -c "import json,common;m=json.load(open('$DATA/dataset_manifest.json'));print(m.get('protocol_version')==common.PROTOCOL_VERSION)")"
+  if [[ "$pv" != True ]]; then
+    echo "ERROR: $DATA prompts were built by an older protocol version. Rebuild them (images and vectors are kept):"
+    echo "  rm $DATA/visual_eval.jsonl && bash run_parity.sh   (use a new RUN name)"; exit 1
+  fi
 fi
 if [[ ! -f "$DATA/vectors/manifest.json" ]]; then
   "$PY" "$HERE/vectors.py" --data "$DATA" --random-seeds "$RANDOM_SEEDS"

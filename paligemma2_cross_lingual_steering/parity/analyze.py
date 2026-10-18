@@ -108,8 +108,15 @@ def main():
             base_rows.append({'task': task, 'prompt_lang': pl, 'style': st, 'n': len(vals),
                               'acc': round(100 * np.mean([int(r['correct']) for r in vals]), 2),
                               'invalid': sum(1 - int(r['valid']) for r in vals)})
+        inval = defaultdict(int)
+        for r in rows:
+            if r['valid'] == '0':
+                inval[(r['prompt_lang'], r['style'], r['task'], 'baseline' if r['variant'] == 'none' else 'steered', r['response'][:60])] += 1
+        inval_rows = [dict(zip(('prompt_lang', 'style', 'task', 'kind', 'response'), k), count=v)
+                      for k, v in sorted(inval.items(), key=lambda kv: -kv[1])]
         d = a.out / label
         d.mkdir(exist_ok=True)
+        write(d / 'invalid_responses.csv', inval_rows)
         write(d / 'cells.csv', cell_rows)
         write(d / 'overall.csv', o_rows)
         write(d / 'pooled.csv', p_rows)

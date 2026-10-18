@@ -76,6 +76,12 @@ def test_prompt():
     assert conn == ' Select from the following choices.\n'
     zh = render_prompt('图中汽车的数量是多少？', ch, conn, 'zh')
     assert zh == '图中汽车的数量是多少？请从以下选项中选择。\n(A) 3\n(B) 2\n(C) 1'
+    # 3D tasks: CV-Bench prompt has no connector sentence -> translations must not add one
+    q3 = 'Which object is closer to the camera taking this photo, the table (highlighted by a red box) or the bookcase (highlighted by a blue box)?'
+    p3 = q3 + '\n(A) table\n(B) bookcase'
+    c3 = split_prompt(p3, q3, ['table', 'bookcase'])
+    assert c3 == '\n'
+    assert render_prompt('Q', ['x', 'y'], c3, 'sw') == 'Q\n(A) x\n(B) y'
     s = {'prompts': {'en': prompt, 'zh': zh, 'sw': 'x'}}
     up = 'answer en ' + 'Answer the multiple choice question by only responding the letter of the correct answer. ' + prompt
     assert build_prompt(s, 'en', 'native') == up == build_prompt(s, 'en', 'upstream_en')

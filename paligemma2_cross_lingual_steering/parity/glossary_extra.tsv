@@ -94,3 +94,41 @@ coat	外套	koti
 hat	帽子	kofia
 tablet	平板电脑	kishikwambi
 traffic sign	交通标志	alama ya barabarani
+# --- 2026-10-18: the 40 terms that fell back to NLLB in the first parity smoke run (several MT outputs were wrong) ---
+air conditioning|air conditionings	空调	kiyoyozi
+arcade	拱廊	matao
+balustrade	栏杆	kiegemeo
+banner	横幅	mabango
+beam	横梁	boriti
+bell	钟	kengele
+candle holder	烛台	kishikio cha mshumaa
+cave entrance	洞口	mlango wa pango
+closet	衣柜	kabati la nguo
+curb	路缘	ukingo wa barabara
+desk organizer	桌面收纳架	kipanga vitu vya mezani
+double door	双开门	mlango wenye milango miwili
+footbridge	人行天桥	daraja la waenda kwa miguu
+hanger	衣架	kiango cha nguo
+hot tub	热水浴缸	beseni la maji moto
+labyrinth	迷宫	mzingile
+laptop bag	笔记本电脑包	mfuko wa kompyuta mpakato
+light post	灯柱	nguzo ya taa
+lighthouse	灯塔	mnara wa taa
+magazine	杂志	jarida
+mailbox	邮箱	sanduku la barua
+music system	音响系统	mfumo wa muziki
+outlet	插座	soketi ya umeme
+potato|potatoes	土豆	viazi
+projection screen	投影幕	skrini ya projekta
+purse	钱包	pochi
+radio	收音机	redio
+river water	河水	maji ya mto
+rope	绳子	kamba
+ruins	废墟	magofu
+shore	岸边	ufukwe
+shower screen	淋浴隔断	kizuizi cha bafu
+soap dish	肥皂盒	sahani ya sabuni
+toilet paper	卫生纸	karatasi ya chooni
+trench	沟渠	mtaro
+trousers	裤子	suruali
+vending machine	自动售货机	mashine ya kuuza bidhaa

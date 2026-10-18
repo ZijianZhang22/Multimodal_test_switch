@@ -21,6 +21,8 @@ HERE = Path(__file__).resolve().parent
 PKG = HERE.parent                                   # paligemma2_cross_lingual_steering/
 UPSTREAM = PKG / '.upstream'                        # Woodygan/TextSteersVision checkout
 REV = 'ce1c0f0cffed9b859901ce347f9d2b869a512178'
+# Bump whenever prompt/translation construction changes; run_parity.sh refuses stale DATA.
+PROTOCOL_VERSION = 'parity-2026-10-18b'
 MODEL_ID = 'google/paligemma2-3b-mix-448'
 TEXT_ID = 'google/gemma-2-2b'                       # upstream MODEL_TO_BASE_MODEL[...3b...]['meanshift']
 N_TEXT_LAYERS = 26                                  # upstream DEFAULT_LAYERS['gemma-2-2b']
@@ -145,7 +147,7 @@ def load_lexicon():
 def lookup(term: str, lex: dict):
     t = term.strip().lower()
     for c in (t, t + 's', t[:-1] if t.endswith('s') else None,
-              t[:-2] if t.endswith('es') else None, t + 'es'):
+              t[:-2] if t.endswith('es') or t.endswith('ss') else None, t + 'es'):
         if c and c in lex:
             return lex[c]
     return None
@@ -268,9 +270,12 @@ def split_prompt(prompt: str, question: str, choices):
 def render_prompt(question_l, choices_l, connector, lang):
     stripped = connector.rstrip('\n')
     tail = connector[len(stripped):]
-    conn = CONNECTOR.get(stripped, {}).get(lang)
-    if conn is None:                               # unknown connector: use the standard one
-        conn = CONNECTOR[' Select from the following choices.'][lang]
+    if stripped.strip() == '':
+        conn = stripped                            # CV-Bench 3D prompts have no connector sentence
+    else:
+        conn = CONNECTOR.get(stripped, {}).get(lang)
+        if conn is None:                           # unknown sentence: use the standard one
+            conn = CONNECTOR[' Select from the following choices.'][lang]
     return question_l + conn + (tail or '\n') + choices_block(choices_l)
 
 
