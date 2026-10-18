@@ -31,3 +31,34 @@ with tempfile.TemporaryDirectory() as temp:
     rows2=evaluate_resumable(samples,configs,path,HEADERS,generate,"validation")
     assert len(rows2)==4 and not calls
 print("Checkpoint resume unit tests passed")
+
+# Regression: validation selection must work with CSV string layer/alpha fields.
+from checkpoint_eval import select_validation_parameters
+validation = [
+    {"id": "a", "source": "base", "mask": "image",
+     "layer": "8", "alpha": "0.5", "correct": "0"},
+    {"id": "b", "source": "base", "mask": "image",
+     "layer": "8", "alpha": "0.5", "correct": "0"},
+    {"id": "a", "source": "base", "mask": "image",
+     "layer": "12", "alpha": "1.0", "correct": "1"},
+    {"id": "b", "source": "base", "mask": "image",
+     "layer": "12", "alpha": "1.0", "correct": "1"},
+]
+# Every cross-product cell must exist; give four combinations below.
+validation += [
+    {"id": id_, "source":"base", "mask":"image",
+     "layer":str(layer), "alpha":str(alpha), "correct":"0"}
+    for layer, alpha in ((8, 1.0), (12, 0.5))
+    for id_ in ("a","b")
+]
+chosen = select_validation_parameters(validation, ["a","b"],
+                                      ["base"], ["image"], [8,12], [0.5,1.0])
+assert chosen == {"base":{"image":{"layer":12,"alpha":1.0}}}
+try:
+    select_validation_parameters(validation[:-1], ["a","b"],
+                                 ["base"], ["image"], [8,12], [0.5,1.0])
+except RuntimeError as e:
+    assert "Incomplete validation cells" in str(e)
+else:
+    raise AssertionError("Incomplete validation must be rejected")
+print("CSV validation selection regression passed")
