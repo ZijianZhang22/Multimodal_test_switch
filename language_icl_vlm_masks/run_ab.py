@@ -336,7 +336,9 @@ def main():
                 answer, edited = generate(image, prompt, source, mask, layer, alpha)
                 scored = score(answer, sample["answer"], sample["choices"],
                                sample["choices_i18n"][args.lang], args.lang)
-                yield (source, mask, layer, alpha), dict(
+                # Checkpoint writer pairs the result with the config itself.
+                # Yield the result dict only, not (config, result).
+                yield dict(
                     id=sample["id"], task=sample["task"], split=split_name,
                     lang=args.lang, source=source, mask=mask, layer=layer,
                     alpha=alpha, response=answer, tokens_edited=edited, **scored)
