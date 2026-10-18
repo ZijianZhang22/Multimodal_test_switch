@@ -12,7 +12,7 @@ calls = []
 def generate(sample, missing):
     for source,mask,layer,alpha in missing:
         calls.append((sample["id"],source))
-        yield (source,mask,layer,alpha), {
+        yield {
             "id":sample["id"],"source":source,"mask":mask,"layer":layer,
             "alpha":alpha,"response":"A"}
 
