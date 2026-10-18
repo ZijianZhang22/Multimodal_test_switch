@@ -117,3 +117,46 @@ def evaluate_resumable(samples, configurations, destination, headers,
     # Publication is atomic: no incomplete file is ever named validation.csv/test.csv.
     os.replace(partial, destination)
     return load_rows(destination, headers)
+
+
+def select_validation_parameters(rows, sample_ids, sources, masks, layers, alphas):
+    """Select (layer, alpha) from CSV data, normalizing its string fields.
+
+    All cells must cover every validation ID exactly once. This supports
+    reload from validation.csv as well as the original in-memory results.
+    Tie-breaking: maximize accuracy, then smallest alpha, then lowest layer.
+    """
+    wanted_ids = {str(i) for i in sample_ids}
+    if not wanted_ids or len(wanted_ids) != len(sample_ids):
+        raise ValueError("Validation sample IDs are empty or duplicated")
+    by_cell = {}
+    for row in rows:
+        if row["source"] == "none":
+            continue
+        key = (str(row["source"]), str(row["mask"]),
+               int(row["layer"]), float(row["alpha"]))
+        if key not in by_cell:
+            by_cell[key] = {}
+        rid = str(row["id"])
+        if rid in by_cell[key]:
+            raise RuntimeError(f"Duplicate validation sample {rid} for {key}")
+        by_cell[key][rid] = int(row["correct"])
+    chosen = {}
+    for source in sources:
+        chosen[source] = {}
+        for mask in masks:
+            candidates = []
+            for layer in layers:
+                for alpha in alphas:
+                    key = (source, mask, int(layer), float(alpha))
+                    cells = by_cell.get(key, {})
+                    if set(cells) != wanted_ids:
+                        raise RuntimeError(
+                            f"Incomplete validation cells for {key}: "
+                            f"found {len(cells)}/{len(wanted_ids)} samples")
+                    accuracy = sum(cells.values()) / len(wanted_ids)
+                    candidates.append((accuracy, -float(alpha), -int(layer),
+                                       int(layer), float(alpha)))
+            best = max(candidates)
+            chosen[source][mask] = {"layer": best[3], "alpha": best[4]}
+    return chosen
