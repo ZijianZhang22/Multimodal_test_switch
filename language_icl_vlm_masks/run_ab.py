@@ -26,7 +26,7 @@ sys.path.insert(0, str(HERE.parent / "paligemma2_cross_lingual_steering" / "pari
 from common import MODEL_ID, TEXT_ID, build_prompt, jsonl_read, score  # noqa: E402
 from core import (partition, sample_pairs, hash_pairs, extract_vectors,
                   token_masks, steer_decoder, demos_text)  # noqa: E402
-from checkpoint_eval import evaluate_resumable  # noqa: E402
+from checkpoint_eval import evaluate_resumable, select_validation_parameters  # noqa: E402
 
 HEADERS = ["id", "task", "split", "lang", "source", "mask", "layer", "alpha",
            "response", "normalized", "valid", "correct", "tokens_edited"]
@@ -355,20 +355,12 @@ def main():
         grid = [(s, m, l, a) for s in sources for m in masks
                 for l in layers for a in alphas]
         val_rows = evaluate(selected_val, "validation", grid, out / "validation.csv")
-        chosen = {}
-        for source in sources:
-            chosen[source] = {}
-            for mask in masks:
-                options = [(l, a) for l in layers for a in alphas]
-                def score_config(setting):
-                    subset = [r for r in val_rows if r["source"] == source and
-                              r["mask"] == mask and (r["layer"], r["alpha"]) == setting]
-                    if len(subset) != len(selected_val):
-                        raise RuntimeError("Incomplete validation cells")
-                    return (sum(int(r["correct"]) for r in subset) / len(subset),
-                            -setting[1], -setting[0])
-                layer, alpha = max(options, key=score_config)
-                chosen[source][mask] = dict(layer=layer, alpha=alpha)
+        # CSV.DictReader returns layer/alpha as strings on resumed runs.
+        # Compare normalized numeric values and assert the full validation
+        # grid is present before freezing any hyperparameters.
+        chosen = select_validation_parameters(
+            val_rows, [s["id"] for s in selected_val],
+            sources, masks, layers, alphas)
         atomic_json(chosen_path, chosen)
     print("Frozen validation selection:", chosen, flush=True)
 
