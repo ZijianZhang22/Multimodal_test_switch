@@ -26,6 +26,7 @@ sys.path.insert(0, str(HERE.parent / "paligemma2_cross_lingual_steering" / "pari
 from common import MODEL_ID, TEXT_ID, build_prompt, jsonl_read, score  # noqa: E402
 from core import (partition, sample_pairs, hash_pairs, extract_vectors,
                   token_masks, steer_decoder, demos_text)  # noqa: E402
+from checkpoint_eval import evaluate_resumable  # noqa: E402
 
 HEADERS = ["id", "task", "split", "lang", "source", "mask", "layer", "alpha",
            "response", "normalized", "valid", "correct", "tokens_edited"]
@@ -322,32 +323,32 @@ def main():
                                 skip_special_tokens=True).strip(), edits["tokens"]
 
     def evaluate(samples, split_name, grid, output_file):
-        # Never duplicate baseline across conditions; fixed same question+image.
-        results = []
-        if output_file.exists():
-            raise RuntimeError(f"Evaluation output exists: {output_file}")
-        for i, sample in enumerate(samples):
+        """Durably append each generated condition and resume missing cells."""
+        configs = [("none", "baseline", -1, 0.0)] + grid
+
+        def sample_rows(sample, missing):
+            # Avoid loading images and prompts for fully completed samples.
             with Image.open(data / sample["image"]) as original:
                 image = original.copy()
             demos = demos_text(splits["compute"], sample["task"], args.shots)
             prompt = compose_vlm_prompt(sample, args.lang, demos)
-            for source, mask, layer, alpha in [("none", "baseline", -1, 0.0)] + grid:
+            for source, mask, layer, alpha in missing:
                 answer, edited = generate(image, prompt, source, mask, layer, alpha)
                 scored = score(answer, sample["answer"], sample["choices"],
                                sample["choices_i18n"][args.lang], args.lang)
-                results.append(dict(id=sample["id"], task=sample["task"],
-                                    split=split_name, lang=args.lang,
-                                    source=source, mask=mask, layer=layer,
-                                    alpha=alpha, response=answer,
-                                    tokens_edited=edited, **scored))
-            if (i + 1) % 5 == 0:
-                print(f"{split_name}: {i+1}/{len(samples)}", flush=True)
-        write_csv(output_file, results, HEADERS)
-        return results
+                yield (source, mask, layer, alpha), dict(
+                    id=sample["id"], task=sample["task"], split=split_name,
+                    lang=args.lang, source=source, mask=mask, layer=layer,
+                    alpha=alpha, response=answer, tokens_edited=edited, **scored)
+
+        return evaluate_resumable(samples, configs, output_file, HEADERS,
+                                  sample_rows, split_name)
 
     chosen_path = out / "selected_validation.json"
     if chosen_path.exists():
         chosen = json.loads(chosen_path.read_text())
+        if not (out / "validation.csv").exists():
+            raise RuntimeError("Selection exists without a completed validation.csv")
     else:
         grid = [(s, m, l, a) for s in sources for m in masks
                 for l in layers for a in alphas]
@@ -373,11 +374,9 @@ def main():
         print("Validation complete; held-out test not evaluated.", flush=True)
         return
     test_file = out / "test.csv"
-    if test_file.exists():
-        if args.resume_test:
-            print("Existing test.csv left unchanged.", flush=True)
-            return
-        raise RuntimeError("Held-out test already exists. Use --resume-test or new output.")
+    if test_file.exists() and not args.resume_test:
+        print("Existing test.csv found; validating/reusing saved predictions.",
+              flush=True)
     grid = [(source, mask, int(chosen[source][mask]["layer"]),
              float(chosen[source][mask]["alpha"])) for source in sources for mask in masks]
     test_rows = evaluate(selected_test, "test", grid, test_file)
