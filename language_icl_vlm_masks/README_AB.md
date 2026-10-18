@@ -68,3 +68,9 @@ Use `--lang sw` with another `--out` directory to test Swahili. `--skip-test` ge
 ## Status
 
 Code pushed to the experiment branch. **GPU end-to-end execution has not been performed here** because gated Google weights and an NVIDIA GPU are not available in this environment. A CPU test validates mask behavior, split integrity and vector geometry. The small GPU pilot must pass before results can be interpreted.
+
+## Resumable full sweep (checkpoint update)
+
+The evaluation now saves each generated prediction to `validation.partial.csv` or `test.partial.csv` and prints sample/cell progress. When all cells are present, the checkpoint is atomically renamed to `validation.csv` or `test.csv`. Restart the same command in the same output directory after an interruption; only missing cells run. Existing complete test results are verified and reused. Run `python language_icl_vlm_masks/test_checkpoint.py` for the local CPU unit test.
+
+Do not launch two simultaneous copies of the same experiment writing to one output directory. Keep `--data`, `--layers`, and all other settings identical on a resume. If desired, keep terminal output in `run.log` with `nohup` and inspect progress with `tail -f`.
