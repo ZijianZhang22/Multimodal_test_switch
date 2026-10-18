@@ -75,3 +75,18 @@ audit=compare_tokenizers(TinyTokenizer(0),TinyTokenizer(100),[("hello","你好")
 assert audit["checked"]==2 and audit["full_token_ids_equal"]==0
 assert audit["source_roundtrip_changed"]==0 and audit["vlm_roundtrip_changed"]==0
 print("Tokenizer mismatch audit checks passed")
+
+# Task prefix must lead the ICL prompt, not follow demonstrations.
+from run_ab import compose_vlm_prompt
+sample={"prompts":{"zh":"问题：图中有几只狗？\n(A) 一\n(B) 二"}}
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0,str(_Path(__file__).resolve().parent.parent/"paligemma2_cross_lingual_steering"/"parity"))
+from common import build_prompt as _build_prompt
+expected=_build_prompt(sample,"zh","native")
+assert compose_vlm_prompt(sample,"zh","")==expected
+t=compose_vlm_prompt(sample,"zh","English examples:\nQuestion: x\nAnswer: A\n\n")
+assert t.startswith("answer zh ")
+assert t.endswith(sample["prompts"]["zh"])
+assert t.find("English examples:")<t.find("问题：")
+print("PaliGemma prompt prefix-order tests passed")
