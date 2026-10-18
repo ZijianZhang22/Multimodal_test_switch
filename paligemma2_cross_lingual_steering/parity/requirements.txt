@@ -1,0 +1,13 @@
+# Same transformers build as upstream TextSteersVision (requirements.txt pins 4.51.3).
+# torch is taken from the RunPod image (venv uses --system-site-packages).
+transformers==4.51.3
+accelerate>=1.5.2,<2
+datasets>=2.21,<4
+pyarrow>=17
+pandas>=2.2,<3
+numpy>=1.26,<3
+pillow>=10,<12
+tqdm>=4.66
+sentencepiece>=0.2
+protobuf>=4
+sacremoses>=0.1
