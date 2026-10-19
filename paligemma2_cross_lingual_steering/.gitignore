@@ -1,0 +1,6 @@
+.upstream/
+.venv/
+.venv-parity/
+outputs/
+logs/
+parity/logs/

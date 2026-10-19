@@ -30,10 +30,13 @@ def parse_letter(text):
     s=str(text).strip()
     # Require a letter in an explicit answer context. Do not search arbitrary
     # prose (e.g. spelling "A" in a paragraph) for the first A-E character.
-    for pattern in [r'^\s*\(?([A-Fa-f])\)?(?=\W|$)',
-                    r'^(?:answer|option|choice|jibu|答案|选项)\s*[:：]?\s*\(?([A-Fa-f])\)?(?=\W|$)']:
-        m=re.search(pattern,s,re.I)
-        if m:return m.group(1).upper()
+    # Fixed 2026-10-17: the first pattern is now case-sensitive, so prose such as
+    # "a cat" or "e.g. A" is no longer parsed as an option letter. For upstream-
+    # comparable scoring use parity/rescore_legacy.py or the parity/ pipeline.
+    m=re.search(r'^\s*\(?([A-F])\)?(?=\W|$)',s)
+    if m:return m.group(1)
+    m=re.search(r'^(?:answer|option|choice|jibu|答案|选项)\s*[:：]?\s*\(?([A-Fa-f])\)?(?=\W|$)',s,re.I)
+    if m:return m.group(1).upper()
     return ''
 
 
@@ -63,7 +66,8 @@ def run(data,split,layers,alphas,mask,limit,normalized,all_features,max_tokens):
     settings={'split':split,'layers':layers,'alphas':alphas,'mask':mask,'limit':limit,
               'normalized':normalized,'all_features':all_features,'max_tokens':max_tokens,
               'dataset_manifest':json.loads((data/'dataset_manifest.json').read_text()),
-              'vector_sha':m['corpus_sha256']}
+              'vector_sha':m['corpus_sha256'],
+              'parser':'v2-case-sensitive-2026-10-17'}
     settings_path=data/f'predictions_{split}_settings.json'
     if pred.exists():
         if not settings_path.exists():raise ValueError('Predictions exist but no settings manifest: use a NEW data directory')

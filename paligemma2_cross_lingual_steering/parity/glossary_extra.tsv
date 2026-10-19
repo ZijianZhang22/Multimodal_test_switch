@@ -1,0 +1,134 @@
+# Supplementary CV-Bench object lexicon (EN forms | separated) \t Simplified Chinese \t Swahili
+# Added 2026-10-17 for the upstream-aligned split, whose IDs extend beyond the curated 840.
+# Draft lexemes, NOT reviewed by native speakers. Lookups also try naive English plural/singular forms.
+pizza	披萨	piza
+snowboard	滑雪板	ubao wa theluji
+sheep	羊	kondoo
+orange	橙子	chungwa
+skateboard	滑板	ubao wa kuteleza
+ski	滑雪板	skii
+construction vehicle	工程车	gari la ujenzi
+whiteboard	白板	ubao mweupe
+computer	电脑	kompyuta
+projector	投影仪	projekta
+machine	机器	mashine
+floor mat	地垫	mkeka wa sakafu
+cart	推车	mkokoteni
+shoe|shoes	鞋	viatu
+ceiling	天花板	dari
+floor	地板	sakafu
+sky	天空	anga
+windowpane	窗玻璃	kioo cha dirisha
+earth|ground	地面	ardhi
+water	水	maji
+shelf	架子	rafu
+sea	海	bahari
+field	田野	shamba
+armchair	扶手椅	kiti cha mikono
+seat	座位	kiti
+rock	岩石	mwamba
+railing	栏杆	kiegemeo
+signboard	招牌	bango
+sand	沙子	mchanga
+grandstand	看台	jukwaa la watazamaji
+path	小路	njia
+stairs|stairway	楼梯	ngazi
+runway	跑道	njia ya kurukia ndege
+pool table	台球桌	meza ya biliadi
+screen door	纱门	mlango wa wavu
+river	河	mto
+bridge	桥	daraja
+flower	花	ua
+countertop	台面	sehemu ya juu ya kaunta
+palm|palm tree	棕榈树	mtende
+swivel chair	转椅	kiti kinachozunguka
+bar	吧台	baa
+light	灯	taa
+chandelier	枝形吊灯	kinara cha taa
+streetlight	路灯	taa ya barabarani
+booth	亭子	kibanda
+television receiver	电视机	televisheni
+dirt track	土路	njia ya udongo
+apparel	衣物	mavazi
+bannister|banister	楼梯扶手	kishikio cha ngazi
+escalator	自动扶梯	ngazi za umeme
+ottoman	软凳	kigoda
+buffet	餐具柜	kabati la vyombo
+stage	舞台	jukwaa
+ship	船	meli
+fountain	喷泉	chemchemi
+conveyer belt|conveyor belt	传送带	mkanda wa kusafirisha
+canopy	顶篷	paa la kitambaa
+washer|washing machine	洗衣机	mashine ya kufulia
+plaything	玩具	kichezeo
+swimming pool	游泳池	bwawa la kuogelea
+barrel	桶	pipa
+tent	帐篷	hema
+minibike	小型摩托车	pikipiki ndogo
+cradle	摇篮	kitanda cha mtoto
+tank	罐	tangi
+pot	锅	sufuria
+lake	湖	ziwa
+dishwasher	洗碗机	mashine ya kuosha vyombo
+screen	屏幕	skrini
+sculpture|statue	雕塑	sanamu
+hood|range hood	抽油烟机	kifyonza moshi
+ashcan	垃圾桶	pipa la taka
+fan	风扇	feni
+crt screen	显像管屏幕	skrini ya CRT
+bulletin board	公告板	ubao wa matangazo
+radiator	暖气片	radieta
+cyclist	骑车人	mwendesha baiskeli
+people	人	watu
+man|men	男人	mwanamume
+woman|women	女人	mwanamke
+child|children|kid|kids	孩子	mtoto
+dish|dishes	盘子	sahani
+bookshelf	书架	rafu ya vitabu
+picture frame	相框	fremu ya picha
+container	容器	chombo
+bucket	水桶	ndoo
+mug	马克杯	kikombe
+phone	手机	simu
+coat	外套	koti
+hat	帽子	kofia
+tablet	平板电脑	kishikwambi
+traffic sign	交通标志	alama ya barabarani
+# --- 2026-10-18: the 40 terms that fell back to NLLB in the first parity smoke run (several MT outputs were wrong) ---
+air conditioning|air conditionings	空调	kiyoyozi
+arcade	拱廊	matao
+balustrade	栏杆	kiegemeo
+banner	横幅	mabango
+beam	横梁	boriti
+bell	钟	kengele
+candle holder	烛台	kishikio cha mshumaa
+cave entrance	洞口	mlango wa pango
+closet	衣柜	kabati la nguo
+curb	路缘	ukingo wa barabara
+desk organizer	桌面收纳架	kipanga vitu vya mezani
+double door	双开门	mlango wenye milango miwili
+footbridge	人行天桥	daraja la waenda kwa miguu
+hanger	衣架	kiango cha nguo
+hot tub	热水浴缸	beseni la maji moto
+labyrinth	迷宫	mzingile
+laptop bag	笔记本电脑包	mfuko wa kompyuta mpakato
+light post	灯柱	nguzo ya taa
+lighthouse	灯塔	mnara wa taa
+magazine	杂志	jarida
+mailbox	邮箱	sanduku la barua
+music system	音响系统	mfumo wa muziki
+outlet	插座	soketi ya umeme
+potato|potatoes	土豆	viazi
+projection screen	投影幕	skrini ya projekta
+purse	钱包	pochi
+radio	收音机	redio
+river water	河水	maji ya mto
+rope	绳子	kamba
+ruins	废墟	magofu
+shore	岸边	ufukwe
+shower screen	淋浴隔断	kizuizi cha bafu
+soap dish	肥皂盒	sahani ya sabuni
+toilet paper	卫生纸	karatasi ya chooni
+trench	沟渠	mtaro
+trousers	裤子	suruali
+vending machine	自动售货机	mashine ya kuuza bidhaa

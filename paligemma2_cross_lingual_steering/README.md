@@ -1,5 +1,13 @@
 # Gemma2-2B (text only) -> PaliGemma2-3B (VLM), cross-lingual Mean Shift
 
+> **2026-10-17 — use [`parity/`](parity/README.md) for new runs.** It reproduces the upstream
+> split, prompt, scoring, grid and selection rule for English and runs EN/ZH/SW on top of that
+> (one click: `bash parity/run_parity_background.sh`). The pipeline below is the *legacy* protocol
+> behind `steering_summary_cvbench`; its prompt, 60/150 split, letter-only scoring and single
+> global (layer, alpha) differ from the paper. `parity/rescore_legacy.py` re-scores its CSVs with
+> the upstream metric. Its `parse_letter` is now case-sensitive (`"a cat"` is no longer read as A);
+> existing prediction CSVs are protected from being resumed with the new parser.
+
 **Original paper parity:** Uses two separate, matched checkpoints:
 - Extract: `google/gemma-2-2b` (independent **text-only** language model).
 - Intervene: `google/paligemma2-3b-mix-448` (vision-language model).
