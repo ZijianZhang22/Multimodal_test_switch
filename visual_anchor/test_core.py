@@ -21,6 +21,14 @@ class Tests(unittest.TestCase):
         w,_=fit(x[:10],y[:10],x,y,y,y,iterations=2,batch=15,tau=.5)
         np.testing.assert_allclose(w.T@w,np.eye(6),atol=1e-10)
         self.assertTrue(np.isfinite(w).all())
+    def test_bank_text_equals_visual_when_embeddings_identical(self):
+        x=self.r.normal(size=(40,6)); e=self.r.normal(size=(42,6))
+        anchors_x=self.r.normal(size=(16,6)); anchors_y=self.r.normal(size=(16,6))
+        bank=self.r.normal(size=(24,6))
+        kw=dict(iterations=4,batch=15,seed=19,cycle=False)
+        visual,_=fit(anchors_x,anchors_y,x,e,bank,bank,method='visual',**kw)
+        text,_=fit(anchors_x,anchors_y,x,e,bank,bank,method='bank_text',**kw)
+        np.testing.assert_allclose(visual,text,atol=1e-12)
     def test_multi_caption(self):
         x=np.array([[1.,0],[1.,0],[0,1]]); y=np.eye(2)
         m,_=retrieval(x,y,np.array(['a','a','b']),np.array(['a','b']),k=0)

@@ -86,7 +86,7 @@ def fit(lpair, epair, lpool, epool, image_bank, caption_bank,
     """Stochastic alternating OT / exact orthogonal update per sampled subproblem.
     Not a monotone optimizer of the full-pool objective.
     """
-    if method not in {'supervised', 'text', 'visual', 'extra_text', 'gaussian', 'broken_pairs'}:
+    if method not in {'supervised', 'text', 'visual', 'bank_text', 'extra_text', 'gaussian', 'broken_pairs'}:
         raise ValueError(method)
     if len(lpair) < lpair.shape[1]:
         warnings.warn('Anchor budget < dimension: initialization is rank deficient; reduce d.')
@@ -97,6 +97,11 @@ def fit(lpair, epair, lpool, epool, image_bank, caption_bank,
     control_rng = np.random.default_rng(seed + 100000)
     target = image_bank
     captions = caption_bank
+    if method == 'bank_text':
+        if len(caption_bank) != len(image_bank):
+            raise ValueError('bank_text needs an English caption for every image-bank row')
+        # Same image IDs and content as visual, but English text embeddings.
+        target = caption_bank
     if method == 'extra_text':
         if extra_e is None or len(extra_e) < len(image_bank):
             raise ValueError('extra_text needs a disjoint English pool >= image bank size')
@@ -121,7 +126,7 @@ def fit(lpair, epair, lpool, epool, image_bank, caption_bank,
         # Shared caption control uses the SAME pseudo-pair weight and selection rule.
         # For extra_text, the third bank is paired with itself (text-only route).
         if cycle and method != 'text':
-            bank_e = target[vi] if method == 'extra_text' else captions[vi]
+            bank_e = target[vi] if method in {'extra_text', 'bank_text'} else captions[vi]
             ix, iy = votes(x@w, bank_e, z, csls)
             count = len(ix)
             if count:
