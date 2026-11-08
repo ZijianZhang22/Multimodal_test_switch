@@ -10,11 +10,13 @@ python -m pip install -r requirements_rosetta.txt
 python -m pip install "unpaired-rosetta @ git+https://github.com/dominik-schnaus/unpaired-rosetta@${ROSETTA_COMMIT}"
 python -m unittest -v test_core test_rosetta3
 WORK="${WORK_DIR:-real_work}"
-read -r -a budgets <<< "${BUDGETS:-0 50 200 1000}"
+read -r -a budgets <<< "${BUDGETS:-50 200 1000}"
 read -r -a seeds <<< "${SEEDS:-0 1 2}"
+echo "Running Rosetta3 budgets: ${budgets[*]}  seeds: ${seeds[*]}  lambda_z: ${LAMBDA_Z:-0.25}"
 for budget in "${budgets[@]}"; do
   python -u run_rosetta3.py --data "$WORK/features.npz" --budget "$budget" --dim 32 --seeds "${seeds[@]}" \
-    --lambda-z "${LAMBDA_Z:-1.0}" --iterations "${ITERATIONS:-100}" --workers "${WORKERS:-4}" \
+    --lambda-z "${LAMBDA_Z:-0.25}" --clusters "${CLUSTERS:-20}" --restarts "${RESTARTS:-5}" \
+    --batch "${BATCH:-256}" --iterations "${ITERATIONS:-20}" --workers "${WORKERS:-1}" \
     --out "$WORK/results_rosetta3_budget_${budget}"
 done
 python summarize_real.py --work "$WORK" --pattern 'results_rosetta3_budget_*' --name summary_rosetta3.csv
