@@ -35,6 +35,16 @@ python -m unittest -v test_core test_rosetta3
 python run_rosetta3.py --data real_work/features.npz --budget 50 --seeds 0 --clusters 8 --restarts 1 --iterations 2 --out real_work/rosetta3_smoke
 ```
 
+默认运行 **50、200、1000 对监督平行句**，不再自动运行 0 对（零配对需显式指定 `BUDGETS=0`）。
+第三目标系数默认 **`lambda_z=0.25`**；官方 `rosetta` 仍始终使用 0。
+为了与之前的官方 Rosetta 试验保持参数一致，默认采用 20 clusters、5 restarts、batch 256、20 iterations。
+
+先快速试跑 50 对：
+
+```bash
+BUDGETS=50 SEEDS="0 1 2" LAMBDA_Z=0.25 bash run_rosetta3.sh
+```
+
 运行默认全部预算的脚本：
 
 ```bash
@@ -45,6 +55,6 @@ bash run_rosetta3.sh
 
 - 中文池约 1000 条，几何初始化零配对可能失败。
 - 不改动原版 Rosetta 的初始化与 readout，只在 refinement 里加第三目标。
-- `lambda_z` 会改变伪配对与监督锚点的相对权重；需要额外的权重消融。
+- `lambda_z` 默认从 1.0 降至 **0.25**（Visual、Bank Text、Extra Text、Gaussian 使用同一系数，以确保公平）；`rosetta` 仍为 0。它仍会改变伪配对与监督锚点的相对权重，因此仍需 0.1/0.25/0.5/1.0 消融。
 - 本实验图像使用 bank 图像均值中心化，不可直接与原先使用 Rosetta 英文均值进行图像中心化的 baseline 指标作严格比较。
 - 官方 Rosetta 依赖 `pylibmgm`；默认 `run_rosetta3.sh` 训练成本比小规模 smoke 测试高。
