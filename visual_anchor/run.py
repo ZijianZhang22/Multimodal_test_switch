@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 from core import PCA, procrustes, fit, retrieval, paired_bootstrap, linear_cka
 
-METHODS = ['supervised','text','visual','extra_text','gaussian','broken_pairs']
+METHODS = ['supervised','text','visual','bank_text','extra_text','gaussian','broken_pairs']
 
 def validate(d):
     train = ['l_fit','e_fit','i_fit','l_pair','e_pair','i_bridge','e_bridge','l_pool','e_pool','i_bank','e_bank','e_extra']
@@ -23,6 +23,8 @@ def validate(d):
     test_ids = set().union(*(set(d[k+'_ids']) for k in test))
     if train_ids & test_ids:
         raise ValueError('Train/test group-ID overlap detected')
+    if set(d['e_pool_ids']) & set(d['e_bank_ids']):
+        raise ValueError('e_pool/e_bank overlap undermines matched-bank control')
     if set(d['e_extra_ids']) & set().union(*(set(d[k+'_ids']) for k in train if k!='e_extra')):
         raise ValueError('e_extra must be additional, disjoint training data')
     for space in 'lei':
