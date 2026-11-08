@@ -1,0 +1,797 @@
+{
+  "config": {
+    "data": "demo_features.npz",
+    "out": "demo_cycle_results",
+    "dim": 16,
+    "budget": 30,
+    "seeds": [
+      0
+    ],
+    "iterations": 2,
+    "batch": 32,
+    "whiten": 0,
+    "epsilon": 0.08,
+    "tau": 0.5,
+    "no_cycle": false,
+    "methods": [
+      "supervised",
+      "text",
+      "visual",
+      "extra_text",
+      "gaussian",
+      "broken_pairs"
+    ]
+  },
+  "summary": {
+    "supervised": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      }
+    },
+    "text": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      }
+    },
+    "visual": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      }
+    },
+    "extra_text": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      }
+    },
+    "gaussian": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      }
+    },
+    "broken_pairs": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": null
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": null
+        }
+      }
+    }
+  },
+  "runs": [
+    {
+      "seed": 0,
+      "method": "supervised",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": []
+    },
+    {
+      "seed": 0,
+      "method": "text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.009993040618524605
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.00990714275352809
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "visual",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 17,
+          "anchor_mse": 0.01563130091094272
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 16,
+          "anchor_mse": 0.01633262506184511
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "extra_text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 21,
+          "anchor_mse": 0.015110120283188403
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 19,
+          "anchor_mse": 0.017178769926026793
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "gaussian",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 1,
+          "anchor_mse": 0.03506586509788212
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.01284608150192845
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "broken_pairs",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 1,
+          "anchor_mse": 0.03386349244304023
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 1,
+          "anchor_mse": 0.02941836130753634
+        }
+      ]
+    }
+  ],
+  "paired_bootstrap": [
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "bridge_train_cka": 0.9928784887926694
+}

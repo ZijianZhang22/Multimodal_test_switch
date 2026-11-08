@@ -1,0 +1,1 @@
+Validated locally: six unit tests; 18 balanced/no-cycle synthetic runs (six methods x three seeds); six unbalanced/cycle synthetic runs; permutation control identity with cycle disabled. Synthetic retrieval saturates at 100% in this easy setup and is NOT evidence of a visual advantage. Real-data encoders and datasets were not run.

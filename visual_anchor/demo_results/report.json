@@ -1,0 +1,1708 @@
+{
+  "config": {
+    "data": "demo_features.npz",
+    "out": "demo_results",
+    "dim": 16,
+    "budget": 30,
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "iterations": 3,
+    "batch": 64,
+    "whiten": 0,
+    "epsilon": 0.08,
+    "tau": null,
+    "no_cycle": true,
+    "methods": [
+      "supervised",
+      "text",
+      "visual",
+      "extra_text",
+      "gaussian",
+      "broken_pairs"
+    ]
+  },
+  "summary": {
+    "supervised": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      }
+    },
+    "text": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      }
+    },
+    "visual": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      }
+    },
+    "extra_text": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      }
+    },
+    "gaussian": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      }
+    },
+    "broken_pairs": {
+      "L-E": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "E-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "L-I": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      },
+      "I-L": {
+        "R@1": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@5": {
+          "mean": 1.0,
+          "std": 0.0
+        },
+        "R@10": {
+          "mean": 1.0,
+          "std": 0.0
+        }
+      }
+    }
+  },
+  "runs": [
+    {
+      "seed": 0,
+      "method": "supervised",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": []
+    },
+    {
+      "seed": 0,
+      "method": "text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.010534416497173956
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.010947178941028288
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.010872102182970276
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "visual",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011624487370852752
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011907372244913183
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012033762137283417
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "extra_text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011743876350988343
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.0122444591664508
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012283077625991469
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "gaussian",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.0118010524951274
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011692057893007785
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012248298448065275
+        }
+      ]
+    },
+    {
+      "seed": 0,
+      "method": "broken_pairs",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011624487370852752
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011907372244913183
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012033762137283417
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "method": "supervised",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": []
+    },
+    {
+      "seed": 1,
+      "method": "text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.01069462113949149
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.010676590837525776
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011165991822382601
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "method": "visual",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011948124659178059
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.013304775744944332
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.01342874218356322
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "method": "extra_text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.01141418805687268
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012038794578302071
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012909883686035966
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "method": "gaussian",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012245543500828099
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012751083819751012
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012508468662177759
+        }
+      ]
+    },
+    {
+      "seed": 1,
+      "method": "broken_pairs",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011948124659178059
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.013304775744944332
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.01342874218356322
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "method": "supervised",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": []
+    },
+    {
+      "seed": 2,
+      "method": "text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.010745835428100663
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.010629310752599383
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.010641841022286843
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "method": "visual",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011862039375388064
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011036398388728606
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011697714794314872
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "method": "extra_text",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011585352781934772
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011655083724778758
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012557367687135211
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "method": "gaussian",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011977698868274116
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.012345086675493047
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.01231464247612189
+        }
+      ]
+    },
+    {
+      "seed": 2,
+      "method": "broken_pairs",
+      "metrics": {
+        "L-E": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "E-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "L-I": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        },
+        "I-L": {
+          "R@1": 1.0,
+          "R@5": 1.0,
+          "R@10": 1.0
+        }
+      },
+      "trace": [
+        {
+          "iteration": 0,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011862039375388064
+        },
+        {
+          "iteration": 1,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011036398388728606
+        },
+        {
+          "iteration": 2,
+          "pseudo_count": 0,
+          "anchor_mse": 0.011697714794314872
+        }
+      ]
+    }
+  ],
+  "paired_bootstrap": [
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "supervised",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "extra_text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "gaussian",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 0,
+      "baseline": "broken_pairs",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "supervised",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "supervised",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "supervised",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "supervised",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "extra_text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "extra_text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "extra_text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "extra_text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "gaussian",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "gaussian",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "gaussian",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "gaussian",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "broken_pairs",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "broken_pairs",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "broken_pairs",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 1,
+      "baseline": "broken_pairs",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "supervised",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "supervised",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "supervised",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "supervised",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "extra_text",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "extra_text",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "extra_text",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "extra_text",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "gaussian",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "gaussian",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "gaussian",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "gaussian",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "broken_pairs",
+      "direction": "L-E",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "broken_pairs",
+      "direction": "E-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "broken_pairs",
+      "direction": "L-I",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "seed": 2,
+      "baseline": "broken_pairs",
+      "direction": "I-L",
+      "difference": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "bridge_train_cka": 0.9928784887926694
+}
