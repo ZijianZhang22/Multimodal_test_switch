@@ -67,18 +67,19 @@ def main():
     p.add_argument("--dim", type=int, default=32)
     p.add_argument("--budget", type=int, default=50, help="known pairs; 0 = zero-pair Rosetta")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    p.add_argument("--lambda-z", type=float, default=1.0)
-    p.add_argument("--clusters", type=int, default=30)
-    p.add_argument("--restarts", type=int, default=30)
-    p.add_argument("--batch", type=int, default=10_000)
-    p.add_argument("--iterations", type=int, default=100)
+    p.add_argument("--lambda-z", type=float, default=0.25, help="weight of third target (0 = official Rosetta)")
+    p.add_argument("--clusters", type=int, default=20)
+    p.add_argument("--restarts", type=int, default=5)
+    p.add_argument("--batch", type=int, default=256)
+    p.add_argument("--iterations", type=int, default=20)
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--whiten", type=float, default=0)
     p.add_argument("--methods", nargs="+", choices=METHODS, default=METHODS)
     p.add_argument("--allow-overlap", action="store_true")
     a = p.parse_args()
-    if a.budget < 0 or a.dim < 1 or a.lambda_z < 0:
-        p.error("budget >= 0, dim >= 1, lambda-z >= 0")
+    if (a.budget < 0 or a.dim < 1 or a.lambda_z < 0
+            or min(a.clusters, a.restarts, a.batch, a.iterations, a.workers) < 1):
+        p.error("budget >= 0, lambda-z >= 0; dim/clusters/restarts/batch/iterations/workers > 0")
 
     d = dict(np.load(a.data, allow_pickle=False))
     validate(d)
@@ -96,6 +97,9 @@ def main():
     image_mean = tensor(z["i_bank"] @ v).mean(dim=0, keepdim=True)
     clusters = min(a.clusters, len(z["l_pool"]) // 2, len(z["e_pool"]) // 2)
 
+    print(f"Starting Rosetta3: budget={a.budget} pairs, lambda_z={a.lambda_z}, "
+          f"clusters={clusters}, restarts={a.restarts}, batch={a.batch}, "
+          f"iterations={a.iterations}, seeds={a.seeds}", flush=True)
     results, hits = [], {}
     init_cache = {}  # same seed + pairs -> same geometric initialization for every method
     for seed in a.seeds:
@@ -107,7 +111,7 @@ def main():
             pool = third_pool(method, z, v, seed)
             model = WassersteinProcrustes3(
                 lambda_z=0.0 if pool is None else a.lambda_z, init_cache=init_cache, num_clusters=clusters, num_restarts=a.restarts,
-                batch_size=a.batch, num_iterations=a.iterations, num_workers=a.workers)
+                batch_size=a.batch, num_iterations=a.iterations, num_workers=a.workers, num_threads=1)
             model.fit(tensor(z["l_pool"]), tensor(z["e_pool"]), px, py, randomness=seed,
                       samples_z=None if pool is None else tensor(pool))
             emb = {
@@ -126,7 +130,7 @@ def main():
             np.savez(out / f"{method}_{seed}.npz", W=model.weight.numpy(), mean_x=model.mean_x.numpy(),
                      mean_y=model.mean_y.numpy(), V_IE=v, image_mean=image_mean.numpy(), anchor_indices=idx,
                      **({"mean_z": model.mean_z.numpy()} if model.mean_z is not None else {}))
-            print(seed, method, metrics, flush=True)
+            print(f"budget={a.budget} seed={seed} method={method} lambda_z={0.0 if pool is None else a.lambda_z} metrics={metrics}", flush=True)
 
     pairs = [(m, "rosetta") for m in a.methods if m != "rosetta"] + [("visual", "bank_text"), ("visual", "extra_text")]
     comparisons = []
