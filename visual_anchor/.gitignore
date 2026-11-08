@@ -1,6 +1,8 @@
 .venv/
+.venv-real/
 __pycache__/
 *.pyc
 *.npz
 *.log
 results*/
+real_work/
