@@ -35,6 +35,20 @@ def groups(train,seed):
     if len(ids)<4500: raise ValueError(f'Need >=4500 clean train images, have {len(ids)}')
     return dict(anchor=ids[:1000],lpool=ids[1000:2000],bridge=ids[2000:3500],bank=ids[3500:4000],extra=ids[4000:4500])
 
+POOL_SOURCES = {'l_fit': ('l_pair', 'l_pool'),
+                'e_fit': ('e_pair', 'e_bridge', 'e_bank'),
+                'i_fit': ('i_bridge', 'i_bank'),
+                # Bank captions must not enter the ordinary English OT pool.
+                'e_pool': ('e_bridge',)}
+
+def assemble_pools(data):
+    for dest, sources in POOL_SOURCES.items():
+        data[dest] = np.concatenate([data[s] for s in sources])
+        data[dest+'_ids'] = np.concatenate([data[s+'_ids'] for s in sources])
+    if set(data['e_pool_ids']) & set(data['e_bank_ids']):
+        raise ValueError('e_pool and e_bank must be disjoint in matched-bank experiments')
+    return data
+
 def main():
     p=argparse.ArgumentParser();p.add_argument('--work',type=Path,default=Path('real_work'))
     p.add_argument('--batch-size',type=int,default=32);p.add_argument('--test-limit',type=int,default=1000)
@@ -84,6 +98,7 @@ def main():
         revisions={k:model_info(v).sha for k,v in model_names.items()};lock.write_text(json.dumps(revisions,indent=2))
     manifest={'source_revision':REV,'image_url':IMAGE_URL,'models':model_names,'revisions':revisions,
               'groups':{k:v.tolist() for k,v in g.items()},'test':test,'test_caption_index':0,
+              'pool_protocol':'stage1_disjoint_e_pool_matched_bank_text',
               'protocol':'Chinese low-supervision pilot; MT anchors; human translated sentence test; native image captions',
               'audit':'image ID + exact image SHA256 + normalized caption exclusion; no near-duplicate or pretraining audit'}
     manifest_text=json.dumps(manifest,ensure_ascii=False,sort_keys=True)
@@ -135,8 +150,7 @@ def main():
     data={}
     for key,(space,rows,identity) in index.items(): data[key]=features[space][rows];data[key+'_ids']=identity
     # Do not expose Lpool image/English counterparts. Extra English remains disjoint.
-    for dest,sources in [('l_fit',['l_pair','l_pool']),('e_fit',['e_pair','e_bridge','e_bank']),('i_fit',['i_bridge','i_bank']),('e_pool',['e_bridge','e_bank'])]:
-        data[dest]=np.concatenate([data[s] for s in sources]);data[dest+'_ids']=np.concatenate([data[s+'_ids'] for s in sources])
+    assemble_pools(data)
     from run import validate
     validate(data)
     output=a.work/'features.npz';atomic_npz(output,**data)
