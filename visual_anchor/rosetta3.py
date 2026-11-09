@@ -43,6 +43,8 @@ class WassersteinProcrustes3(WassersteinProcrustes):
     Args:
         lambda_z: Weight of the X-Z pseudo-pairs relative to the X-Y pseudo-pairs. 0 = official Rosetta.
         init_cache: Optional dict shared across fits; reuses identical geometric initializations (bit-identical).
+        anchor_scale: Scales known-pair term in refinement only (default 1 = official).
+            For weight-only control, use 1/(1+lambda_z), with no third pool.
         **kwargs: Passed unchanged to ``WassersteinProcrustes``.
 
     Attributes (besides the official ones):
@@ -50,12 +52,16 @@ class WassersteinProcrustes3(WassersteinProcrustes):
         z_counts: Matched X-Z rows per refinement step (for logging).
     """
 
-    def __init__(self, lambda_z: float = 0.0, init_cache: dict | None = None, **kwargs) -> None:
+    def __init__(self, lambda_z: float = 0.0, init_cache: dict | None = None,
+                 anchor_scale: float = 1.0, **kwargs) -> None:
         super().__init__(**kwargs)
         self.init_cache = init_cache  # share one dict across methods to reuse the geometric initialization
         if lambda_z < 0:
             raise ValueError("lambda_z must be non-negative")
         self.lambda_z = float(lambda_z)
+        if not 0 < anchor_scale <= 1.0:
+            raise ValueError("anchor_scale must be in (0, 1]")
+        self.anchor_scale = float(anchor_scale)
         self.mean_z = None
         self.z_counts: list[int] = []
         self._z = None
@@ -138,7 +144,8 @@ class WassersteinProcrustes3(WassersteinProcrustes):
         paired_y: Tensor | None,
         randomness: Randomness,
     ) -> Tensor:
-        if self._z is None:
+        # Keep the *exact* official path when no control is active.
+        if self._z is None and self.anchor_scale == 1.0:
             return super().refinement_step(samples_x, samples_y, weight, paired_x, paired_y, randomness)
         # Lines 7-9 of Algorithm 1, copied from the official code: same draws from the same stream, in the same order.
         batch_x = samples_x[randomness.subset(samples_x.shape[0], self.batch_size)]
@@ -148,15 +155,16 @@ class WassersteinProcrustes3(WassersteinProcrustes):
         matched = rows.shape[0]
         cross_covariance = batch_x[rows].T @ batch_y[columns]
         if paired_x is not None:
-            cross_covariance = cross_covariance + ((matched / paired_x.shape[0]) * paired_x.T) @ paired_y
-        # Extra term: the same batch of X W matched to a batch of Z, drawn from the independent stream.
-        batch_z = self._z[self._rng_z.subset(self._z.shape[0], self.batch_size)]
-        rows_z, columns_z = batched_hungarian_matching(
-            batch_x @ weight, batch_z, max(batch_x.shape[0], batch_z.shape[0])
-        )
-        self.z_counts.append(int(rows_z.shape[0]))
-        z_weight = self.lambda_z * matched / rows_z.shape[0]
-        cross_covariance = cross_covariance + (z_weight * batch_x[rows_z].T) @ batch_z[columns_z]
+            cross_covariance = cross_covariance + ((self.anchor_scale * matched / paired_x.shape[0]) * paired_x.T) @ paired_y
+        if self._z is not None:
+            # Extra term: the same X batch matched to independent Z samples.
+            batch_z = self._z[self._rng_z.subset(self._z.shape[0], self.batch_size)]
+            rows_z, columns_z = batched_hungarian_matching(
+                batch_x @ weight, batch_z, max(batch_x.shape[0], batch_z.shape[0])
+            )
+            self.z_counts.append(int(rows_z.shape[0]))
+            z_weight = self.lambda_z * matched / rows_z.shape[0]
+            cross_covariance = cross_covariance + (z_weight * batch_x[rows_z].T) @ batch_z[columns_z]
         return polar(cross_covariance)
 
     @torch.inference_mode()
