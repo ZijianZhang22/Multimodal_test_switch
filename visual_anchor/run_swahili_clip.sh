@@ -42,6 +42,8 @@ RESULT_TAG="${LABEL}_${PCA_MODE}_d${DIM}_${ANCHOR_MODE}_${IMAGE_MODE}"
 read -r -a budgets <<< "${BUDGETS:-10 25 50}"
 read -r -a seeds <<< "${SEEDS:-0 1 2 3 4 5 6 7 8 9}"
 read -r -a methods <<< "${METHODS:-pairs_only image_only noise_only caption_only text_only joint joint_caption joint_noise joint_extra_english}"
+RESUME_FLAGS=()
+if [[ "${RESUME:-0}" == "1" ]]; then RESUME_FLAGS=(--resume); fi
 for budget in "${budgets[@]}"; do
   dest="$WORK/results_${RESULT_TAG}_budget_${budget}"
   echo "Swahili CLIP: budget=$budget, seeds=${seeds[*]}, methods=${methods[*]}"
@@ -52,7 +54,7 @@ for budget in "${budgets[@]}"; do
     --ablation-lambda-z "${ABLATION_LAMBDA_Z:-1.0}" \
     --clusters "${CLUSTERS:-20}" --restarts "${RESTARTS:-5}" \
     --batch "${BATCH:-256}" --iterations "${ITERATIONS:-20}" --workers "${WORKERS:-1}" \
-    --out "$dest"
+    "${RESUME_FLAGS[@]}" --out "$dest"
 done
 python summarize_real.py --work "$WORK" --pattern "results_${RESULT_TAG}_budget_*" --name "summary_${RESULT_TAG}.csv"
 python analyze_ablation.py --work "$WORK" --pattern "results_${RESULT_TAG}_budget_*" \

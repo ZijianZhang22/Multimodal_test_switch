@@ -104,9 +104,43 @@ def check_bridge_pca(bridge, shared_ei_pca, joint_ei_pca):
         raise ValueError("--bridge identity requires --shared-ei-pca or --joint-ei-pca")
 
 
+def restore_checkpoint(model, filename, expected_indices, expected_lambda_y,
+                       expected_lambda_z, expected_bridge, dim):
+    """Restore a completed method/seed without retraining; metrics are re-evaluated.
+
+    Older checkpoints save W, target/source centering, anchors, loss weights,
+    and the bridge. These are sufficient for deterministic held-out retrieval.
+    Do not silently accept a run from a different budget or loss setting.
+    """
+    with np.load(filename, allow_pickle=False) as cache:
+        required = {"W", "mean_x", "mean_y", "V_IE", "anchor_indices", "lambda_y", "lambda_z"}
+        missing = required - set(cache.files)
+        if missing:
+            raise ValueError(f"Incomplete checkpoint {filename}: missing {sorted(missing)}")
+        w = cache["W"]
+        mx = cache["mean_x"]
+        my = cache["mean_y"]
+        if w.shape != (dim, dim) or mx.shape != (1, dim) or my.shape != (1, dim):
+            raise ValueError(f"Checkpoint dimension mismatch in {filename}")
+        if not np.array_equal(cache["anchor_indices"], expected_indices):
+            raise ValueError(f"Checkpoint anchors do not match current seed/budget: {filename}")
+        if not np.isclose(float(cache["lambda_y"]), expected_lambda_y) or not np.isclose(
+                float(cache["lambda_z"]), expected_lambda_z):
+            raise ValueError(f"Checkpoint loss weights do not match the current run: {filename}")
+        if not np.allclose(cache["V_IE"], expected_bridge, atol=1e-6):
+            raise ValueError(f"Checkpoint bridge does not match the current PCA: {filename}")
+        if not all(np.isfinite(a).all() for a in (w, mx, my)):
+            raise ValueError(f"Nonfinite checkpoint tensors in {filename}")
+        model.weight, model.mean_x, model.mean_y = tensor(w), tensor(mx), tensor(my)
+        model.z_counts = []
+    return model
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--data", required=True)
+    p.add_argument("--resume", action="store_true",
+                   help="reuse saved method_seed.npz checkpoints and reconstruct the complete report")
     p.add_argument("--out", default="results_rosetta3")
     p.add_argument("--dim", type=int, default=32)
     p.add_argument("--budget", type=int, default=50, help="known pairs; 0 = zero-pair Rosetta")
@@ -200,7 +234,13 @@ def main():
                 init_cache=init_cache, num_clusters=clusters,
                 num_restarts=a.restarts, batch_size=a.batch, num_iterations=a.iterations,
                 num_workers=a.workers, num_threads=1)
-            if method in ("supervised", "pairs_only"):
+            checkpoint = out / f"{method}_{seed}.npz"
+            restored = a.resume and checkpoint.is_file()
+            if restored:
+                restore_checkpoint(model, checkpoint, idx, lambda_y, lambda_z, v, a.dim)
+                print(f"RESUME budget={a.budget} seed={seed} method={method} "
+                      f"from {checkpoint}", flush=True)
+            elif method in ("supervised", "pairs_only"):
                 model.fit_supervised(tensor(z["l_pool"]), tensor(z["e_pool"]), px, py)
             else:
                 model.fit(tensor(z["l_pool"]), tensor(z["e_pool"]), px, py,
@@ -225,18 +265,21 @@ def main():
                 hit_payload["hits_" + k] = np.asarray(arr, dtype=bool)
                 hit_payload["ids_" + k] = direction_ids[direction]
             np.savez_compressed(out / f"hits_{method}_{seed}.npz", **hit_payload)
-            z_mean = float(np.mean(model.z_counts)) if model.z_counts else 0.0
+            # Historical checkpoint files did not retain match counts.
+            z_mean = (None if restored and pool is not None else
+                      float(np.mean(model.z_counts)) if model.z_counts else 0.0)
             results.append({"seed": seed, "method": method, "metrics": metrics,
                             "mean_z_matches": z_mean, "anchor_scale": anchor_scale,
                             "lambda_y": lambda_y, "lambda_z": lambda_z,
                             "init_mode": init_mode, "z_pool_count": 0 if pool is None else len(pool),
                             "init_seed": seed, "anchor_centering": a.anchor_centering,
                             "image_centering": a.image_centering})
-            np.savez(out / f"{method}_{seed}.npz", W=model.weight.numpy(), mean_x=model.mean_x.numpy(),
-                     mean_y=model.mean_y.numpy(), V_IE=v,
-                     image_mean=(image_mean if a.image_centering == "bank" else model.mean_y).numpy(),
-                     anchor_indices=idx, lambda_y=np.array(lambda_y), lambda_z=np.array(lambda_z),
-                     **({"mean_z": model.mean_z.numpy()} if model.mean_z is not None else {}))
+            if not restored:
+                np.savez(checkpoint, W=model.weight.numpy(), mean_x=model.mean_x.numpy(),
+                         mean_y=model.mean_y.numpy(), V_IE=v,
+                         image_mean=(image_mean if a.image_centering == "bank" else model.mean_y).numpy(),
+                         anchor_indices=idx, lambda_y=np.array(lambda_y), lambda_z=np.array(lambda_z),
+                         **({"mean_z": model.mean_z.numpy()} if model.mean_z is not None else {}))
             print(f"budget={a.budget} seed={seed} method={method} "
                   f"lambda_y={lambda_y} lambda_z={lambda_z} init={init_mode} "
                   f"anchor_scale={anchor_scale:.4f} metrics={metrics}", flush=True)
