@@ -97,6 +97,31 @@ class Rosetta3Tests(unittest.TestCase):
                 self.assertTrue(torch.equal(plain, cached), f"pairs={pairs}, lambda={lam}")
         self.assertEqual(len(cache), 2)
 
+    def test_anchor_weight_control_changes_mapping_and_preserves_orthogonality(self):
+        w = self.w
+        baseline = WassersteinProcrustes3(anchor_scale=1.0, **SMALL).fit(
+            w["x"], w["y"], w["px"], w["py"], randomness=3)
+        down = WassersteinProcrustes3(anchor_scale=0.8, **SMALL).fit(
+            w["x"], w["y"], w["px"], w["py"], randomness=3)
+        self.assertFalse(torch.equal(baseline.weight, down.weight))
+        torch.testing.assert_close(down.weight.T @ down.weight,
+                                   torch.eye(D), atol=1e-4, rtol=0)
+        self.assertEqual(down.z_counts, [])
+
+    def test_english_pool_control_uses_original_english_pool(self):
+        from run_rosetta3 import third_pool
+        z = {"e_pool": np.array([[1., 2.], [3., 4.]]),
+             "i_bank": np.ones((2, 2))}
+        returned = third_pool("english_pool", z, np.eye(2), 0)
+        np.testing.assert_array_equal(returned, z["e_pool"])
+        self.assertIsNone(third_pool("anchor_downweight", z, np.eye(2), 0))
+
+    def test_anchor_scale_validation(self):
+        with self.assertRaises(ValueError):
+            WassersteinProcrustes3(anchor_scale=0.0, **SMALL)
+        with self.assertRaises(ValueError):
+            WassersteinProcrustes3(anchor_scale=1.2, **SMALL)
+
     def test_overlap_guard(self):
         d = {"e_bank_ids": np.array(["a", "b"]), "e_pool_ids": np.array(["b", "c"])}
         with self.assertRaises(ValueError):
