@@ -182,8 +182,11 @@ def main():
     if a.csv is None:
         dataset_sha = repo_info(DATASET_ID, repo_type="dataset").sha
         files = list_repo_files(DATASET_ID, repo_type="dataset", revision=dataset_sha)
-        matches = [name for name in files if name.lower().endswith(".csv")
-                   and "caption" in name.lower()]
+        matches = [name for name in files if name.lower().endswith(".csv")]
+        if len(matches) > 1:
+            preferred = [name for name in matches if "caption" in name.lower() or "swaflickr" in name.lower()]
+            if len(preferred) == 1:
+                matches = preferred
         if len(matches) != 1:
             p.error("Could not uniquely identify Swahili caption CSV: {}".format(matches))
         csv_path = Path(hf_hub_download(DATASET_ID, matches[0],
