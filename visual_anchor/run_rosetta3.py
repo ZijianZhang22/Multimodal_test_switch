@@ -28,7 +28,8 @@ from run import validate
 ROSETTA_COMMIT = "fdfad84ea488f29702a61a455be71622c4ff5d49"
 METHODS = ["supervised", "rosetta", "visual", "bank_text", "extra_text", "gaussian",
            "english_pool", "anchor_downweight", "pairs_only", "image_only", "text_only",
-           "noise_only", "caption_only", "joint"]
+           "noise_only", "caption_only", "joint", "joint_caption",
+           "joint_noise", "joint_extra_english"]
 # Five main ablations use IDENTICAL anchor-only initialization; official
 # geometric Rosetta is reported separately, not treated as a matched init.
 ABLATIONS = {
@@ -38,6 +39,9 @@ ABLATIONS = {
     "noise_only": ("supervised", 0.0, 1.0, "gaussian"),
     "caption_only": ("supervised", 0.0, 1.0, "bank_text"),
     "joint": ("supervised", 1.0, 1.0, "visual"),
+    "joint_caption": ("supervised", 1.0, 1.0, "bank_text"),
+    "joint_noise": ("supervised", 1.0, 1.0, "gaussian"),
+    "joint_extra_english": ("supervised", 1.0, 1.0, "extra_text"),
 }
 DIRECTIONS = {"L-E": ("l_test", "e_test"), "E-L": ("e_test", "l_test"),
               "L-I": ("l_img_test", "i_test"), "I-L": ("i_test", "l_img_test")}
@@ -48,19 +52,29 @@ def tensor(x):
 
 
 def third_pool(method, z, v, seed):
+    """Matched-size Z pools. Image and its caption retain identical row IDs/order.
+
+    All A-E/J arms use n=min(image bank, caption bank, extra English)
+    observations to isolate target content/modality instead of sample count.
+    When source pools have 500 entries, the original behavior is unchanged.
+    """
     if method in {"supervised", "rosetta", "anchor_downweight"}:
         return None
     if method == "english_pool":
         return z["e_pool"]
+    rng = np.random.default_rng(seed + 100000)
+    n = min(len(z["i_bank"]), len(z["e_bank"]), len(z["e_extra"]))
+    if n == 0:
+        raise ValueError("No bank/extra English examples for matched-size Z comparison")
+    # Deterministic same-index subset of image and paired English caption banks.
+    # At n == bank size this is an exact no-op (preserves previous experiment).
+    idx = (np.arange(n) if n == len(z["i_bank"])
+           else np.sort(rng.choice(len(z["i_bank"]), n, replace=False)))
     if method == "visual":
-        return z["i_bank"] @ v
+        return z["i_bank"][idx] @ v
     if method == "bank_text":
-        return z["e_bank"]
-    rng = np.random.default_rng(seed + 100000)  # same control stream as core.fit
-    n = len(z["i_bank"])
+        return z["e_bank"][idx]
     if method == "extra_text":
-        if len(z["e_extra"]) < n:
-            raise ValueError("e_extra must have at least as many rows as i_bank")
         return z["e_extra"][rng.choice(len(z["e_extra"]), n, replace=False)]
     if method == "gaussian":
         return rng.normal(size=(n, z["e_bank"].shape[1]))
@@ -69,7 +83,8 @@ def third_pool(method, z, v, seed):
 
 def check_overlap(d, methods, allow):
     shared = set(d["e_bank_ids"]) & set(d["e_pool_ids"])
-    if shared and not allow and {"visual", "bank_text", "image_only", "caption_only", "joint"} & set(methods):
+    if shared and not allow and {"visual", "bank_text", "image_only", "caption_only",
+                                 "joint", "joint_caption"} & set(methods):
         raise ValueError(
             f"{len(shared)} bank image IDs also appear in e_pool. The bank's content is then already in the English "
             "pool and visual/bank_text are not a fair test. Rebuild features with e_pool = e_bridge only "
@@ -152,6 +167,8 @@ def main():
           f"clusters={clusters}, restarts={a.restarts}, batch={a.batch}, "
           f"iterations={a.iterations}, seeds={a.seeds}", flush=True)
     results, hits = [], {}
+    # To enable fully paired post-hoc comparisons, store each query hit by image ID.
+    direction_ids = {direction: d[keys[0] + "_ids"] for direction, keys in DIRECTIONS.items()}
     init_cache = {}  # same seed + pairs -> same geometric initialization for every method
     for seed in a.seeds:
         idx = (np.random.default_rng(seed).choice(len(z["l_pair"]), a.budget, replace=False)
@@ -200,11 +217,20 @@ def main():
                 m, h = retrieval(emb[xk], emb[yk], d[xk + "_ids"], d[yk + "_ids"])
                 metrics[name], per_query[name] = m, h["R@1"]
             hits[(seed, method)] = per_query
+            # Independent predictions, not only means: downstream hierarchical
+            # bootstrap uses identical image IDs and seeds across all methods.
+            hit_payload = {}
+            for direction, arr in per_query.items():
+                k = direction.replace("-", "_")
+                hit_payload["hits_" + k] = np.asarray(arr, dtype=bool)
+                hit_payload["ids_" + k] = direction_ids[direction]
+            np.savez_compressed(out / f"hits_{method}_{seed}.npz", **hit_payload)
             z_mean = float(np.mean(model.z_counts)) if model.z_counts else 0.0
             results.append({"seed": seed, "method": method, "metrics": metrics,
                             "mean_z_matches": z_mean, "anchor_scale": anchor_scale,
                             "lambda_y": lambda_y, "lambda_z": lambda_z,
-                            "init_mode": init_mode, "anchor_centering": a.anchor_centering,
+                            "init_mode": init_mode, "z_pool_count": 0 if pool is None else len(pool),
+                            "init_seed": seed, "anchor_centering": a.anchor_centering,
                             "image_centering": a.image_centering})
             np.savez(out / f"{method}_{seed}.npz", W=model.weight.numpy(), mean_x=model.mean_x.numpy(),
                      mean_y=model.mean_y.numpy(), V_IE=v,
@@ -240,6 +266,7 @@ def main():
             "std": float(np.std([r["metrics"][direction][k] for r in rows], ddof=1)) if len(rows) > 1 else None}
             for k in ["R@1", "R@5", "R@10"]} for direction in DIRECTIONS}
     report = {"config": vars(a), "rosetta_commit": ROSETTA_COMMIT, "clusters_used": clusters,
+              "matched_third_pool_size": min(len(z["i_bank"]), len(z["e_bank"]), len(z["e_extra"])),
               "bank_pool_overlap_ids": overlap,
               "pca_protocol": ("shared_separate_means" if a.shared_ei_pca else
                                "joint_single_mean" if a.joint_ei_pca else "separate_pca"),
