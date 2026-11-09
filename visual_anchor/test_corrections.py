@@ -3,10 +3,31 @@ import unittest
 import numpy as np
 import torch
 from rosetta3 import WassersteinProcrustes3
-from run_rosetta3 import tensor
+from run_rosetta3 import tensor, check_bridge_pca, check_overlap
 
 PARAMS = dict(num_clusters=4, num_restarts=1, batch_size=32,
               num_iterations=2, num_workers=1, num_threads=1)
+
+class BridgeFlagTests(unittest.TestCase):
+    def test_native_identity_allows_shared_or_joint_pca(self):
+        self.assertIsNone(check_bridge_pca("identity", True, False))
+        self.assertIsNone(check_bridge_pca("identity", False, True))
+
+    def test_native_identity_rejects_separate_pca(self):
+        with self.assertRaisesRegex(ValueError, "requires"):
+            check_bridge_pca("identity", False, False)
+
+    def test_modes_are_mutually_exclusive(self):
+        with self.assertRaisesRegex(ValueError, "Choose only one"):
+            check_bridge_pca("identity", True, True)
+
+    def test_ablation_aliases_trigger_overlap_guard(self):
+        data = {"e_bank_ids": np.array(["a"]), "e_pool_ids": np.array(["a"])}
+        for method in ("image_only", "caption_only", "joint"):
+            with self.subTest(method=method):
+                with self.assertRaises(ValueError):
+                    check_overlap(data, [method], allow=False)
+
 
 class CenteringTests(unittest.TestCase):
     def setUp(self):
