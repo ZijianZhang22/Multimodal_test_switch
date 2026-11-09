@@ -57,6 +57,15 @@ def reconcile_missing_images(base, by_image, english):
     """
     output = dict(base)
     available = set(by_image)
+    # Exact sentence-level translation required for supervised anchors and
+    # Swahili-to-English test pairs. Image-ID equality alone is not enough.
+    for key in ("l_pair", "l_test"):
+        for im in base[key + "_ids"]:
+            ref = english.get((str(im), 0))
+            if ref is None or not any(row[0] == norm_english(ref)
+                                      for row in by_image.get(str(im), ())):
+                available.discard(str(im))
+
     group_sets = [
         ("l_pair", "e_pair"),
         ("l_pool",),
