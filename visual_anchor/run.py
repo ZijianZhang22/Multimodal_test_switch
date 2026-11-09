@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 import numpy as np
-from core import PCA, procrustes, fit, retrieval, paired_bootstrap, linear_cka
+from core import PCA, fit_space_pcas, procrustes, fit, retrieval, paired_bootstrap, linear_cka
 
 METHODS = ['supervised','text','visual','bank_text','extra_text','gaussian','broken_pairs']
 
@@ -41,13 +41,14 @@ def main():
     p.add_argument('--whiten',type=float,default=0); p.add_argument('--epsilon',type=float,default=.08)
     p.add_argument('--tau',type=float,default=None); p.add_argument('--no-cycle',action='store_true')
     p.add_argument('--methods',nargs='+',choices=METHODS,default=METHODS)
+    p.add_argument('--shared-ei-pca',action='store_true',help='one PCA for E and I (use with --encoders clip features)')
     a=p.parse_args()
     if a.budget<1 or a.iterations<1 or a.batch<1 or a.dim<1:
         p.error('budget, iterations, batch and dim must be positive')
     d=dict(np.load(a.data,allow_pickle=False)); validate(d)
     if a.budget>len(d['l_pair']): p.error('budget exceeds available anchors')
     out=Path(a.out); out.mkdir(parents=True,exist_ok=True)
-    transforms={s:PCA(a.dim,a.whiten).fit(d[s+'_fit']) for s in 'lei'}
+    transforms=fit_space_pcas(d,a.dim,a.whiten,a.shared_ei_pca)
     z={k:transforms[k[0]].transform(v) for k,v in d.items() if not k.endswith('_ids')}
     v=procrustes(z['i_bridge'],z['e_bridge'])
     image_bank=z['i_bank']@v

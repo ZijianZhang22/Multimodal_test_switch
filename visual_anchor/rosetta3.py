@@ -53,12 +53,22 @@ class WassersteinProcrustes3(WassersteinProcrustes):
     """
 
     def __init__(self, lambda_z: float = 0.0, init_cache: dict | None = None,
-                 anchor_scale: float = 1.0, **kwargs) -> None:
+                 anchor_scale: float = 1.0, lambda_y: float = 1.0,
+                 init_mode: str = "rosetta", anchor_centering: str = "pool", **kwargs) -> None:
         super().__init__(**kwargs)
         self.init_cache = init_cache  # share one dict across methods to reuse the geometric initialization
         if lambda_z < 0:
             raise ValueError("lambda_z must be non-negative")
         self.lambda_z = float(lambda_z)
+        if lambda_y < 0:
+            raise ValueError("lambda_y must be non-negative")
+        if init_mode not in ("rosetta", "supervised"):
+            raise ValueError("init_mode must be rosetta or supervised")
+        if anchor_centering not in ("paired", "source_pool", "pool"):
+            raise ValueError("anchor_centering must be paired, source_pool, or pool")
+        self.anchor_centering = anchor_centering
+        self.lambda_y = float(lambda_y)
+        self.init_mode = init_mode
         if not 0 < anchor_scale <= 1.0:
             raise ValueError("anchor_scale must be in (0, 1]")
         self.anchor_scale = float(anchor_scale)
@@ -89,10 +99,52 @@ class WassersteinProcrustes3(WassersteinProcrustes):
             self._rng_z = Randomness(seed + Z_STREAM_OFFSET)
         else:
             self.mean_z, self._z, self._rng_z = None, None, None
+        if self.lambda_y == 0 and self._z is None and paired_x is None:
+            raise ValueError("lambda_y=0 and no Z requires known pairs")
         try:
+            if self.init_mode == "supervised":
+                return self._fit_from_anchors(samples_x, samples_y, paired_x, paired_y, seed)
             return super().fit(samples_x, samples_y, paired_x, paired_y, randomness)
         finally:
             self._z, self._rng_z = None, None  # do not keep the training pool on the object
+
+    def _fit_from_anchors(self, samples_x, samples_y, paired_x, paired_y, seed):
+        """Anchor-only initialization; no English unpaired matching in initialization.
+
+        Uses X unpaired-pool mean and optionally the Y unpaired-pool mean
+        for more stable low-budget centering. `source_pool` keeps the Y mean
+        estimated only from the known anchors. `paired` reproduces the older
+        implementation. For `pool`, even with lambda_y=0 the Y pool
+        contributes its MEAN (but not its samples or pseudo-pairs).
+        Upstream PCA also uses unpaired English text.
+        """
+        if paired_x is None or paired_y is None or paired_x.shape[0] == 0:
+            raise ValueError("supervised initialization requires nonempty known pairs")
+        self.mean_x, self.mean_y = self._anchor_means(
+            samples_x.float(), samples_y.float(), paired_x.float(), paired_y.float())
+        px = center_and_normalize(paired_x.float(), self.mean_x)
+        py = center_and_normalize(paired_y.float(), self.mean_y)
+        x = center_and_normalize(samples_x.float(), self.mean_x)
+        # Do not even normalize the unpaired English pool if lambda_y=0.
+        y = (center_and_normalize(samples_y.float(), self.mean_y)
+             if self.lambda_y > 0 else None)
+        weight = polar(px.T @ py)
+        randomness = Randomness(seed)
+        for _ in range(self.num_iterations):
+            weight = self.refinement_step(x, y, weight, px, py, randomness)
+        self.weight = weight
+        return self
+
+    def _anchor_means(self, samples_x, samples_y, paired_x, paired_y):
+        if self.anchor_centering == "paired":
+            mean_x = paired_x.mean(dim=0, keepdim=True)
+            mean_y = paired_y.mean(dim=0, keepdim=True)
+        else:
+            mean_x = samples_x.mean(dim=0, keepdim=True)
+            mean_y = (samples_y.mean(dim=0, keepdim=True)
+                      if self.anchor_centering == "pool"
+                      else paired_y.mean(dim=0, keepdim=True))
+        return mean_x, mean_y
 
     def _fit(self, samples_x, samples_y, paired_x, paired_y, randomness):
         """Official ``_fit`` with an optional cache of the geometric initialization.
@@ -145,27 +197,61 @@ class WassersteinProcrustes3(WassersteinProcrustes):
         randomness: Randomness,
     ) -> Tensor:
         # Keep the *exact* official path when no control is active.
-        if self._z is None and self.anchor_scale == 1.0:
+        if (self._z is None and self.anchor_scale == 1.0 and self.lambda_y == 1.0
+                and self.init_mode == "rosetta"):
+            # Critical: the official pathway remains bitwise identical.
             return super().refinement_step(samples_x, samples_y, weight, paired_x, paired_y, randomness)
-        # Lines 7-9 of Algorithm 1, copied from the official code: same draws from the same stream, in the same order.
+        if self.lambda_y == 0 and self._z is None:
+            # A: pairs only, no pseudo-pairs at all.
+            if paired_x is None:
+                raise ValueError("No objective terms: require known pairs or at least one target pool")
+            return weight
         batch_x = samples_x[randomness.subset(samples_x.shape[0], self.batch_size)]
-        batch_y = samples_y[randomness.subset(samples_y.shape[0], self.batch_size)]
-        block_size = max(batch_x.shape[0], batch_y.shape[0])
-        rows, columns = batched_hungarian_matching(batch_x @ weight, batch_y, block_size)
-        matched = rows.shape[0]
-        cross_covariance = batch_x[rows].T @ batch_y[columns]
-        if paired_x is not None:
-            cross_covariance = cross_covariance + ((self.anchor_scale * matched / paired_x.shape[0]) * paired_x.T) @ paired_y
+        y_pair = None
+        z_pair = None
+        if self.lambda_y > 0:
+            if samples_y is None:
+                raise ValueError("Y pool required when lambda_y > 0")
+            batch_y = samples_y[randomness.subset(samples_y.shape[0], self.batch_size)]
+            rows_y, cols_y = batched_hungarian_matching(
+                batch_x @ weight, batch_y, max(batch_x.shape[0], batch_y.shape[0]))
+            y_pair = (batch_x[rows_y], batch_y[cols_y])
         if self._z is not None:
-            # Extra term: the same X batch matched to independent Z samples.
             batch_z = self._z[self._rng_z.subset(self._z.shape[0], self.batch_size)]
-            rows_z, columns_z = batched_hungarian_matching(
-                batch_x @ weight, batch_z, max(batch_x.shape[0], batch_z.shape[0])
-            )
-            self.z_counts.append(int(rows_z.shape[0]))
-            z_weight = self.lambda_z * matched / rows_z.shape[0]
-            cross_covariance = cross_covariance + (z_weight * batch_x[rows_z].T) @ batch_z[columns_z]
+            rows_z, cols_z = batched_hungarian_matching(
+                batch_x @ weight, batch_z, max(batch_x.shape[0], batch_z.shape[0]))
+            z_pair = (batch_x[rows_z], batch_z[cols_z])
+            self.z_counts.append(len(rows_z))
+        # Anchor coefficient is normalized by the active pseudo-pair count.
+        # With lambda_y=0 this is the *visual* count, not a phantom Y count.
+        k = len(y_pair[0]) if y_pair is not None else len(z_pair[0])
+        cross_covariance = torch.zeros_like(weight)
+        if y_pair is not None:
+            cross_covariance += (self.lambda_y * k / len(y_pair[0])) * (y_pair[0].T @ y_pair[1])
+        if z_pair is not None:
+            cross_covariance += (self.lambda_z * k / len(z_pair[0])) * (z_pair[0].T @ z_pair[1])
+        if paired_x is not None:
+            cross_covariance += ((self.anchor_scale * k / paired_x.shape[0]) * paired_x.T) @ paired_y
         return polar(cross_covariance)
+
+    @torch.inference_mode()
+    def fit_supervised(self, samples_x: Tensor, samples_y: Tensor, paired_x: Tensor, paired_y: Tensor):
+        """Pairs-only baseline: orthogonal Procrustes on the known pairs, in Rosetta's own preprocessing.
+
+        Centers source and target with the configured `anchor_centering`
+        means, and unit-normalizes both. `pool` uses both unpaired pool means;
+        `source_pool` does not use the English pool mean; `paired` is legacy.
+        No geometric initialization or unpaired Hungarian matching is used.
+        """
+        if paired_x is None or paired_x.shape[0] == 0:
+            raise ValueError("the supervised baseline needs at least one known pair")
+        samples_x, samples_y = samples_x.float(), samples_y.float()
+        self.mean_x, self.mean_y = self._anchor_means(
+            samples_x.float(), samples_y.float(), paired_x.float(), paired_y.float())
+        px = center_and_normalize(paired_x.float(), self.mean_x)
+        py = center_and_normalize(paired_y.float(), self.mean_y)
+        self.weight, self.mean_z, self.z_counts = polar(px.T @ py), None, []
+        return self
 
     @torch.inference_mode()
     def transform_target(self, samples: Tensor, mean: Tensor) -> Tensor:

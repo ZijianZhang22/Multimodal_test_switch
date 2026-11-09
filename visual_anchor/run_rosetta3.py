@@ -1,6 +1,7 @@
 """Official two-space Rosetta vs. Rosetta with a third target pool, on the same features.npz as run.py.
 
 Methods (all share Rosetta's geometric initialization, readout, batch size and iteration count):
+  supervised  pairs-only orthogonal Procrustes (no unpaired data at all)
   rosetta     official WassersteinProcrustes, X = low-resource pool, Y = English pool (lambda_z = 0)
   visual      third pool = bank images mapped into English by the frozen V_IE
   bank_text   third pool = the English captions of the SAME bank images (content-matched, modality differs)
@@ -20,13 +21,24 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from core import PCA, paired_bootstrap, procrustes, retrieval
+from core import fit_space_pcas, paired_bootstrap, procrustes, retrieval
 from rosetta3 import WassersteinProcrustes3
 from run import validate
 
 ROSETTA_COMMIT = "fdfad84ea488f29702a61a455be71622c4ff5d49"
-METHODS = ["rosetta", "visual", "bank_text", "extra_text", "gaussian",
-           "english_pool", "anchor_downweight"]
+METHODS = ["supervised", "rosetta", "visual", "bank_text", "extra_text", "gaussian",
+           "english_pool", "anchor_downweight", "pairs_only", "image_only", "text_only",
+           "noise_only", "caption_only", "joint"]
+# Five main ablations use IDENTICAL anchor-only initialization; official
+# geometric Rosetta is reported separately, not treated as a matched init.
+ABLATIONS = {
+    "pairs_only": ("supervised", 0.0, 0.0, None),
+    "image_only": ("supervised", 0.0, 1.0, "visual"),
+    "text_only": ("supervised", 1.0, 0.0, None),
+    "noise_only": ("supervised", 0.0, 1.0, "gaussian"),
+    "caption_only": ("supervised", 0.0, 1.0, "bank_text"),
+    "joint": ("supervised", 1.0, 1.0, "visual"),
+}
 DIRECTIONS = {"L-E": ("l_test", "e_test"), "E-L": ("e_test", "l_test"),
               "L-I": ("l_img_test", "i_test"), "I-L": ("i_test", "l_img_test")}
 
@@ -36,7 +48,7 @@ def tensor(x):
 
 
 def third_pool(method, z, v, seed):
-    if method in {"rosetta", "anchor_downweight"}:
+    if method in {"supervised", "rosetta", "anchor_downweight"}:
         return None
     if method == "english_pool":
         return z["e_pool"]
@@ -72,7 +84,14 @@ def main():
     p.add_argument("--dim", type=int, default=32)
     p.add_argument("--budget", type=int, default=50, help="known pairs; 0 = zero-pair Rosetta")
     p.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    p.add_argument("--lambda-z", type=float, default=0.25, help="weight of third target (0 = official Rosetta)")
+    p.add_argument("--lambda-z", type=float, default=0.25, help="third-term weight for legacy methods")
+    p.add_argument("--lambda-y", type=float, default=1.0, help="Y weight for legacy methods (default 1)")
+    p.add_argument("--ablation-lambda-z", type=float, default=1.0,
+                   help="Z weight for image_only/noise_only/caption_only/joint, default 1")
+    p.add_argument("--bridge", choices=("procrustes", "identity"), default="procrustes",
+                   help="identity uses native CLIP coordinates; procrustes is legacy learned bridge")
+    p.add_argument("--joint-ei-pca", action="store_true",
+                   help="recommended with CLIP: common mean and projection for E/I")
     p.add_argument("--clusters", type=int, default=20)
     p.add_argument("--restarts", type=int, default=5)
     p.add_argument("--batch", type=int, default=256)
@@ -81,8 +100,15 @@ def main():
     p.add_argument("--whiten", type=float, default=0)
     p.add_argument("--methods", nargs="+", choices=METHODS, default=METHODS)
     p.add_argument("--allow-overlap", action="store_true")
+    p.add_argument("--anchor-centering", choices=("pool", "source_pool", "paired"),
+                   default="pool", help="A-E and pairs-only centering: pool=both train pool means; "
+                   "source_pool=source pool and target paired mean; paired=both paired means")
+    p.add_argument("--image-centering", choices=("bank", "english"), default="bank",
+                   help="fixed image evaluation mean, identical across all methods")
+    p.add_argument("--shared-ei-pca", action="store_true", help="one PCA for E and I (use with --encoders clip features)")
     a = p.parse_args()
-    if (a.budget < 0 or a.dim < 1 or a.lambda_z < 0
+    if (a.budget < 0 or a.dim < 1 or a.lambda_z < 0 or a.lambda_y < 0
+            or a.ablation_lambda_z <= 0
             or min(a.clusters, a.restarts, a.batch, a.iterations, a.workers) < 1):
         p.error("budget >= 0, lambda-z >= 0; dim/clusters/restarts/batch/iterations/workers > 0")
 
@@ -95,14 +121,19 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     # Same preprocessing and frozen image->English map as run.py.
-    pcas = {s: PCA(a.dim, a.whiten).fit(d[s + "_fit"]) for s in "lei"}
+    if a.bridge == "identity" and not a.joint_ei_pca:
+        p.error("--bridge identity requires --joint-ei-pca (common CLIP coordinates)")
+    pcas = fit_space_pcas(d, a.dim, a.whiten, a.shared_ei_pca, a.joint_ei_pca)
     z = {k: pcas[k[0]].transform(v) for k, v in d.items() if not k.endswith("_ids")}
-    v = procrustes(z["i_bridge"], z["e_bridge"])
-    # One fixed image centering for EVERY method, so L-I differences never come from the evaluation preprocessing.
+    v = (np.eye(a.dim) if a.bridge == "identity"
+         else procrustes(z["i_bridge"], z["e_bridge"]))
+    # Image evaluation must use one FIXED mean for all methods. The image
+    # bank is train-only and is also the pool used to center Visual's Z.
+    # Retain English-centering as a backwards-compatibility ablation.
     image_mean = tensor(z["i_bank"] @ v).mean(dim=0, keepdim=True)
     clusters = min(a.clusters, len(z["l_pool"]) // 2, len(z["e_pool"]) // 2)
 
-    print(f"Starting Rosetta3: budget={a.budget} pairs, lambda_z={a.lambda_z}, "
+    print(f"Starting Rosetta3: budget={a.budget} pairs, lambda_y={a.lambda_y}, lambda_z={a.lambda_z}, "
           f"clusters={clusters}, restarts={a.restarts}, batch={a.batch}, "
           f"iterations={a.iterations}, seeds={a.seeds}", flush=True)
     results, hits = [], {}
@@ -113,19 +144,41 @@ def main():
         px = tensor(z["l_pair"][idx]) if a.budget else None
         py = tensor(z["e_pair"][idx]) if a.budget else None
         for method in a.methods:
-            pool = third_pool(method, z, v, seed)
+            if method in ABLATIONS:
+                init_mode, lambda_y, lambda_z, z_type = ABLATIONS[method]
+                lambda_z = (a.ablation_lambda_z if z_type is not None else 0.0)
+                pool = third_pool(z_type, z, v, seed) if z_type is not None else None
+            else:
+                init_mode, lambda_y = "rosetta", a.lambda_y
+                pool = third_pool(method, z, v, seed)
+                lambda_z = a.lambda_z if pool is not None else 0.0
+                if method == "rosetta":
+                    lambda_y = 1.0  # immutable official reference
+            if method == "supervised" or method == "pairs_only":
+                if not a.budget:
+                    print(f"budget=0 seed={seed}: skipping {method} (needs known pairs)", flush=True)
+                    continue
+            elif init_mode == "supervised" and not a.budget:
+                print(f"budget=0 seed={seed}: skipping {method} (anchor init)", flush=True)
+                continue
             anchor_scale = 1.0 / (1.0 + a.lambda_z) if method == "anchor_downweight" else 1.0
             model = WassersteinProcrustes3(
-                lambda_z=0.0 if pool is None else a.lambda_z,
-                anchor_scale=anchor_scale, init_cache=init_cache, num_clusters=clusters, num_restarts=a.restarts,
-                batch_size=a.batch, num_iterations=a.iterations, num_workers=a.workers, num_threads=1)
-            model.fit(tensor(z["l_pool"]), tensor(z["e_pool"]), px, py, randomness=seed,
-                      samples_z=None if pool is None else tensor(pool))
+                lambda_z=lambda_z, lambda_y=lambda_y, init_mode=init_mode,
+                anchor_scale=anchor_scale, anchor_centering=a.anchor_centering,
+                init_cache=init_cache, num_clusters=clusters,
+                num_restarts=a.restarts, batch_size=a.batch, num_iterations=a.iterations,
+                num_workers=a.workers, num_threads=1)
+            if method in ("supervised", "pairs_only"):
+                model.fit_supervised(tensor(z["l_pool"]), tensor(z["e_pool"]), px, py)
+            else:
+                model.fit(tensor(z["l_pool"]), tensor(z["e_pool"]), px, py,
+                          randomness=seed, samples_z=None if pool is None else tensor(pool))
             emb = {
                 "l_test": model.transform(tensor(z["l_test"])).numpy(),
                 "l_img_test": model.transform(tensor(z["l_img_test"])).numpy(),
                 "e_test": model.transform_target(tensor(z["e_test"]), model.mean_y).numpy(),
-                "i_test": model.transform_target(tensor(z["i_test"] @ v), image_mean).numpy(),
+                "i_test": model.transform_target(
+                    tensor(z["i_test"] @ v), image_mean if a.image_centering == "bank" else model.mean_y).numpy(),
             }
             metrics, per_query = {}, {}
             for name, (xk, yk) in DIRECTIONS.items():
@@ -134,12 +187,17 @@ def main():
             hits[(seed, method)] = per_query
             z_mean = float(np.mean(model.z_counts)) if model.z_counts else 0.0
             results.append({"seed": seed, "method": method, "metrics": metrics,
-                            "mean_z_matches": z_mean, "anchor_scale": anchor_scale})
+                            "mean_z_matches": z_mean, "anchor_scale": anchor_scale,
+                            "lambda_y": lambda_y, "lambda_z": lambda_z,
+                            "init_mode": init_mode, "anchor_centering": a.anchor_centering,
+                            "image_centering": a.image_centering})
             np.savez(out / f"{method}_{seed}.npz", W=model.weight.numpy(), mean_x=model.mean_x.numpy(),
-                     mean_y=model.mean_y.numpy(), V_IE=v, image_mean=image_mean.numpy(), anchor_indices=idx,
+                     mean_y=model.mean_y.numpy(), V_IE=v,
+                     image_mean=(image_mean if a.image_centering == "bank" else model.mean_y).numpy(),
+                     anchor_indices=idx, lambda_y=np.array(lambda_y), lambda_z=np.array(lambda_z),
                      **({"mean_z": model.mean_z.numpy()} if model.mean_z is not None else {}))
             print(f"budget={a.budget} seed={seed} method={method} "
-                  f"lambda_z={0.0 if pool is None else a.lambda_z} "
+                  f"lambda_y={lambda_y} lambda_z={lambda_z} init={init_mode} "
                   f"anchor_scale={anchor_scale:.4f} metrics={metrics}", flush=True)
 
     pairs = [(m, "rosetta") for m in a.methods if m != "rosetta"] + [("visual", "bank_text"), ("visual", "extra_text")]
@@ -160,6 +218,8 @@ def main():
     summary = {}
     for method in a.methods:
         rows = [r for r in results if r["method"] == method]
+        if not rows:
+            continue
         summary[method] = {direction: {k: {
             "mean": float(np.mean([r["metrics"][direction][k] for r in rows])),
             "std": float(np.std([r["metrics"][direction][k] for r in rows], ddof=1)) if len(rows) > 1 else None}

@@ -53,7 +53,7 @@ class Rosetta3Tests(unittest.TestCase):
         for pairs in (True, False):
             reference = self.official(pairs)
             for kwargs in ({"lambda_z": 0.0}, {"lambda_z": 0.7}):
-                z = w["z"] if kwargs["lambda_z"] == 0 else None
+                z = w["z"] if kwargs["lambda_z"] == 0 else None  # Z given with lambda 0, or lambda > 0 without Z
                 ours = WassersteinProcrustes3(**kwargs, **SMALL).fit(
                     w["x"], w["y"], w["px"] if pairs else None, w["py"] if pairs else None, randomness=3,
                     samples_z=z).weight
@@ -69,7 +69,7 @@ class Rosetta3Tests(unittest.TestCase):
         self.assertEqual(len(model.z_counts), SMALL["num_iterations"])
 
     def test_row_order_of_z_does_not_matter(self):
-        w = self.w
+        w = self.w  # batch_size covers every row, so each step matches the same set of Z rows
         order = torch.randperm(len(w["z"]), generator=torch.Generator().manual_seed(2))
         fits = [WassersteinProcrustes3(lambda_z=1.0, **SMALL).fit(
             w["x"], w["y"], w["px"], w["py"], randomness=3, samples_z=z).weight for z in (w["z"], w["z"][order])]
@@ -89,7 +89,7 @@ class Rosetta3Tests(unittest.TestCase):
         cache = {}
         for pairs in (True, False):
             px, py = (w["px"], w["py"]) if pairs else (None, None)
-            for lam, z in ((0.0, None), (1.0, w["z"]), (0.0, None)):
+            for lam, z in ((0.0, None), (1.0, w["z"]), (0.0, None)):  # fill, reuse with Z, reuse again
                 plain = WassersteinProcrustes3(lambda_z=lam, **SMALL).fit(
                     w["x"], w["y"], px, py, randomness=3, samples_z=z).weight
                 cached = WassersteinProcrustes3(lambda_z=lam, init_cache=cache, **SMALL).fit(

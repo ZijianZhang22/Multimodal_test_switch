@@ -1,6 +1,7 @@
 import argparse,csv,json
 from pathlib import Path
-p=argparse.ArgumentParser();p.add_argument('--work',type=Path,default=Path('real_work'));p.add_argument('--pattern',default='results_budget_*');p.add_argument('--name',default='summary.csv');a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--work',type=Path,default=Path('real_work'))
+p.add_argument('--pattern',default='results_budget_*');p.add_argument('--name',default='summary.csv');a=p.parse_args()
 rows=[]
 for file in sorted(a.work.glob(a.pattern+'/report.json')):
     r=json.loads(file.read_text())

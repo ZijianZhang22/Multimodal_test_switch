@@ -26,6 +26,42 @@ class PCA:
     def transform(self, x):
         return unit((x-self.mean) @ self.proj)
 
+    @classmethod
+    def fit_shared(cls, d, arrays, whiten=0.0):
+        """One projection for spaces that already share coordinates (CLIP text and image towers).
+
+        Each space is centered with ITS OWN mean (this removes CLIP's modality gap); the principal axes are fitted on
+        the stacked centered data, so both spaces keep CLIP's common coordinates after the reduction.
+        """
+        if len({x.shape[1] for x in arrays}) != 1:
+            raise ValueError('Shared PCA needs equal feature widths (E and I from the same CLIP model)')
+        means = [x.mean(0) for x in arrays]
+        stacked = np.vstack([x - m for x, m in zip(arrays, means)])
+        fitted = cls(d, whiten).fit(stacked)  # mean ~ 0; reuse the rank checks and whitening of fit()
+        out = []
+        for m in means:
+            p = cls(d, whiten)
+            p.mean, p.proj = m, fitted.proj
+            out.append(p)
+        return out
+
+
+def fit_space_pcas(data, d, whiten=0.0, shared_ei=False, joint_ei=False):
+    """Training-only PCA. For native CLIP, jointly fit ONE mean and ONE projection for E and I.
+
+    The legacy shared_ei option has a shared projection but separate modality means.
+    joint_ei=True preserves relative CLIP coordinates and is recommended for native CLIP.
+    """
+    if shared_ei and joint_ei:
+        raise ValueError("Choose only one of shared_ei or joint_ei")
+    pcas = {s: PCA(d, whiten).fit(data[s+'_fit']) for s in 'lei'}
+    if shared_ei:
+        pcas['e'], pcas['i'] = PCA.fit_shared(d, [data['e_fit'], data['i_fit']], whiten)
+    elif joint_ei:
+        combined = PCA(d, whiten).fit(np.concatenate([data['e_fit'], data['i_fit']], axis=0))
+        pcas['e'] = pcas['i'] = combined
+    return pcas
+
 
 def polar(m):
     u, _, vt = np.linalg.svd(m, full_matrices=False)

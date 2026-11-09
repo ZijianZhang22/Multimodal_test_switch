@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 
 import numpy as np
-from core import PCA, procrustes, retrieval
+from core import PCA, fit_space_pcas, procrustes, retrieval
 from run import validate
 
 
@@ -117,6 +117,7 @@ def main():
     p.add_argument("--restarts", type=int, default=5)
     p.add_argument("--batch", type=int, default=256)
     p.add_argument("--iterations", type=int, default=20)
+    p.add_argument("--shared-ei-pca", action="store_true", help="one PCA for E and I (use with --encoders clip features)")
     args = p.parse_args()
     if not args.budgets or not args.seeds:
         p.error("At least one budget and one seed are required")
@@ -134,7 +135,7 @@ def main():
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    pca = {s: PCA(args.dim).fit(data[s + "_fit"]) for s in "lei"}
+    pca = fit_space_pcas(data, args.dim, shared_ei=args.shared_ei_pca)
     z = {k: pca[k[0]].transform(v) for k, v in data.items()
          if not k.endswith("_ids")}
     # Exactly the frozen bridge used in visual_anchor/run.py
