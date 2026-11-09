@@ -1,3 +1,36 @@
+# CLIP native shared-PCA experiment (128D default)
+
+**Latest runner:** `run_clip_native.sh` defaults to **shared PCA**, **128D**, 10/25/50 paired anchors, seeds 0/1/2, six matched A–E/joint methods, supervised-initialization centering `source_pool`, image-centering `bank`. The raw pretrained CLIP E/I features are reused from `real_work_clip_native/features.npz`; there is no learned I→E bridge.
+
+Shared PCA differs from joint PCA: it uses the same principal axes for English and image embeddings, but *separate training means* for each modality. The held-out bridge diagnostics supplied by the experimenter showed shared-PCA R@1=0.570 at 128D, compared with joint-PCA R@1=0.467; these results are diagnostic and should **not** be used as the final model-selection set.
+
+From the repository root:
+
+```bash
+cd visual_anchor
+bash run_clip_native.sh
+```
+
+For a quick smoke test (one seed, one anchor budget, short refinement):
+
+```bash
+BUDGETS='10' SEEDS='0' CLUSTERS=8 RESTARTS=1 ITERATIONS=2 bash run_clip_native.sh
+```
+
+The one-command run reuses existing CLIP vectors if present. Set `REBUILD_FEATURES=1` only if you need to regenerate the original features. To recalculate the Bridge diagnostic for this exact dimension without re-encoding, use `BRIDGE_ONLY=1 bash run_clip_native.sh` or `RECHECK_BRIDGE=1 bash run_clip_native.sh`. A saved diagnostic is named `bridge_test_dim_128.json` instead of silently overwriting a 32D diagnostic.
+
+To run the **old joint PCA** for an explicit centering ablation: `PCA_MODE=joint bash run_clip_native.sh`. For other dimensions: `DIM=256 bash run_clip_native.sh`. Results are saved under dimension+PCA-specific names, e.g. `real_work_clip_native/results_clip_shared_d128_source_pool_bank_budget_10/` and `real_work_clip_native/summary_clip_shared_d128_source_pool_bank.csv`.
+
+`--bridge identity` now accepts **either** `--shared-ei-pca` or `--joint-ei-pca`, but rejects both flags simultaneously and rejects no PCA mode. All six main methods use the same anchors, source-pool/paired-target means and supervised initialization within a fixed seed/budget.
+
+**Scientific interpretation:** A visual advantage means improvement over paired-only, Gaussian and same-image English caption controls on held-out retrieval. These experiments only measure retrieval, not VQA. `source_pool` avoids Y-pool matching and Y-pool centering for `image_only`, but English unlabeled features still enter the *shared PCA fitting*. `text_only` has a larger unpaired target pool than `image_only`; use the matched image/caption pair comparison for modality-specific evidence. Do not select hyperparameters using the held-out final test split.
+
+**Test scope:** The previous official Rosetta branch remains accessible separately. Passing Python unit tests does not establish an end-to-end GPU run; validate with a single seed before a multi-seed experiment.
+
+---
+
+## Previous experiment notes
+
 # CLIP Native + lambda_Y Rosetta3 (A-E experiment)
 
 This is a self-contained **overlay** on the existing `visual_anchor/` folder, built from the CLIP code bundle supplied in the conversation and updated with native CLIP geometry and lambda_Y ablations. Copy the archive contents into `visual_anchor/`, keeping existing requirements, `summarize_real.py`, `test_core.py`, `test_real.py`, `test_rosetta3.py` intact.
