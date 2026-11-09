@@ -48,6 +48,94 @@ def load_swahili_csv(path):
     return dict(by_image)
 
 
+
+def reconcile_missing_images(base, by_image, english):
+    """Exclude untranslated images consistently; refill missing anchor slots from bridge.
+    
+    All English/image features are reused, and no held-out ID is moved into training.
+    A moved bridge image is removed from BOTH bridge modalities and the E pool.
+    """
+    output = dict(base)
+    available = set(by_image)
+    group_sets = [
+        ("l_pair", "e_pair"),
+        ("l_pool",),
+        ("e_bridge", "i_bridge"),
+        ("e_bank", "i_bank"),
+        ("e_extra",),
+        ("l_test", "e_test", "l_img_test", "i_test"),
+    ]
+    dropped = {}
+    for keys in group_sets:
+        # A shared image ID must be present in every member of the group.
+        initial = set(str(x) for x in output[keys[0] + "_ids"])
+        missing = initial - available
+        dropped["/".join(keys)] = sorted(missing)
+        for key in keys:
+            ids = output[key + "_ids"]
+            mask = np.asarray([str(image_id) in available for image_id in ids], dtype=bool)
+            output[key] = output[key][mask]
+            output[key + "_ids"] = ids[mask]
+
+    # Preserve the requested maximum budget of 1000 matched pairs.
+    original_anchors = len(base["l_pair"])
+    deficit = original_anchors - len(output["l_pair"])
+    replacements = []
+    if deficit:
+        candidates = []
+        for i, im in enumerate(output["e_bridge_ids"]):
+            ref = english.get((str(im), 0))
+            if ref is None:
+                continue
+            if any(key == norm_english(ref) for key, _, _ in by_image[str(im)]):
+                candidates.append(i)
+            if len(candidates) == deficit:
+                break
+        if len(candidates) != deficit:
+            raise ValueError("Cannot refill {} missing anchor rows from bridge with verified Swahili-English captions; "
+                             "have {} candidates".format(deficit, len(candidates)))
+        chosen = np.asarray(candidates, dtype=int)
+        replacements = [str(im) for im in output["e_bridge_ids"][chosen]]
+        # Original Chinese L features are placeholders here; all L arrays are
+        # replaced with newly encoded Swahili later in the pipeline.
+        l_width = base["l_pair"].shape[1]
+        output["l_pair"] = np.concatenate(
+            [output["l_pair"], np.zeros((deficit, l_width), dtype=base["l_pair"].dtype)])
+        output["l_pair_ids"] = np.concatenate(
+            [output["l_pair_ids"], output["e_bridge_ids"][chosen]])
+        output["e_pair"] = np.concatenate(
+            [output["e_pair"], output["e_bridge"][chosen]], axis=0)
+        output["e_pair_ids"] = np.concatenate(
+            [output["e_pair_ids"], output["e_bridge_ids"][chosen]])
+        mask = np.ones(len(output["e_bridge"]), dtype=bool)
+        mask[chosen] = False
+        for key in ("e_bridge", "i_bridge"):
+            output[key] = output[key][mask]
+            output[key + "_ids"] = output[key + "_ids"][mask]
+
+    sources = {
+        "l_fit": ("l_pair", "l_pool"),
+        "e_fit": ("e_pair", "e_bridge", "e_bank"),
+        "i_fit": ("i_bridge", "i_bank"),
+        "e_pool": ("e_bridge",),
+    }
+    for dest, keys in sources.items():
+        output[dest] = np.concatenate([output[key] for key in keys], axis=0)
+        output[dest + "_ids"] = np.concatenate([output[key + "_ids"] for key in keys])
+
+    # Every remaining row must be properly split and nonempty.
+    validate(output)
+    audit = {
+        "excluded_missing_image_ids": dropped,
+        "replacement_anchor_ids_from_bridge": replacements,
+        "original_anchor_count": original_anchors,
+        "repaired_anchor_count": len(output["l_pair"]),
+        "original_test_count": len(base["l_test"]),
+        "repaired_test_count": len(output["l_test"]),
+    }
+    return output, audit
+
+
 def aligned_caption(by_image, image_id, english, allow_image_fallback=False):
     """Return caption + exact_match flag; never silently mix English caption identities."""
     rows = by_image.get(str(image_id), [])
@@ -198,6 +286,8 @@ def main():
     validate(base)
     by_image = load_swahili_csv(csv_path)
     en_by_image = parse_captions(a.english_captions.read_text(encoding="utf-8"))
+    base, missing_audit = reconcile_missing_images(base, by_image, en_by_image)
+    print("Swahili missing-image audit:", json.dumps(missing_audit, ensure_ascii=False), flush=True)
     fields, audits = build_text_fields(base, en_by_image, by_image,
                                       allow_image_fallback=a.allow_image_fallback)
     print("Swahili alignment audit:", audits, flush=True)
@@ -219,7 +309,7 @@ def main():
         "source_features": str(a.base_data), "output": str(a.out),
         "model": a.model, "model_revision": model_sha,
         "model_input_prefix": "query: ", "max_length": a.max_length,
-        "audit": audits,
+        "audit": audits, "missing_image_audit": missing_audit,
         "notes": [
             "English/image spaces and all ID splits copied from the original feature file.",
             "Swahili captions are caption-aligned to English by image and normalized English sentence.",
