@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 from prepare_swahili import (aligned_caption, build_text_fields,
                              independent_image_caption, load_swahili_csv,
-                             norm_english)
+                             norm_english, reconcile_missing_images)
 
 
 class SwahiliTests(unittest.TestCase):
@@ -27,6 +27,50 @@ class SwahiliTests(unittest.TestCase):
             aligned_caption(rows, "abc", "A cat.")
         self.assertEqual(aligned_caption(rows, "abc", "A cat.", True),
                          ("Mbwa", False))
+
+    def test_missing_caption_id_refills_anchor_from_bridge_and_preserves_splits(self):
+        keys = {
+            "l_pair": ["missing"],
+            "e_pair": ["missing"],
+            "l_pool": ["pool"],
+            "e_bridge": ["bridge1", "bridge2"],
+            "i_bridge": ["bridge1", "bridge2"],
+            "e_bank": ["bank"],
+            "i_bank": ["bank"],
+            "e_extra": ["extra"],
+            "l_test": ["test"],
+            "e_test": ["test"],
+            "l_img_test": ["test"],
+            "i_test": ["test"],
+        }
+        base = {}
+        for key, ids in keys.items():
+            base[key] = np.ones((len(ids), 4), dtype=np.float32)
+            base[key + "_ids"] = np.asarray(ids)
+        for dest, sources in {
+            "l_fit": ("l_pair", "l_pool"),
+            "e_fit": ("e_pair", "e_bridge", "e_bank"),
+            "i_fit": ("i_bridge", "i_bank"),
+            "e_pool": ("e_bridge",),
+        }.items():
+            base[dest] = np.concatenate([base[k] for k in sources])
+            base[dest + "_ids"] = np.concatenate([base[k + "_ids"] for k in sources])
+        sw = {
+            key: [(norm_english(value), value, "Kiswahili")]
+            for key, value in {
+                "pool": "Pool caption", "bridge1": "Bridge caption",
+                "bridge2": "Another bridge", "bank": "Bank caption",
+                "extra": "Extra caption", "test": "Test caption",
+            }.items()
+        }
+        en = {("bridge1", 0): "Bridge caption", ("test", 0): "Test caption"}
+        output, audit = reconcile_missing_images(base, sw, en)
+        self.assertEqual(output["l_pair_ids"].tolist(), ["bridge1"])
+        self.assertEqual(output["e_pool_ids"].tolist(), ["bridge2"])
+        self.assertEqual(audit["original_anchor_count"], 1)
+        self.assertEqual(audit["repaired_anchor_count"], 1)
+        self.assertEqual(audit["repaired_test_count"], 1)
+        self.assertEqual(audit["replacement_anchor_ids_from_bridge"], ["bridge1"])
 
     def test_csv_parser(self):
         with tempfile.TemporaryDirectory() as directory:
