@@ -69,12 +69,24 @@ def third_pool(method, z, v, seed):
 
 def check_overlap(d, methods, allow):
     shared = set(d["e_bank_ids"]) & set(d["e_pool_ids"])
-    if shared and not allow and {"visual", "bank_text"} & set(methods):
+    if shared and not allow and {"visual", "bank_text", "image_only", "caption_only", "joint"} & set(methods):
         raise ValueError(
             f"{len(shared)} bank image IDs also appear in e_pool. The bank's content is then already in the English "
             "pool and visual/bank_text are not a fair test. Rebuild features with e_pool = e_bridge only "
             "(prepare_real.py), or pass --allow-overlap to reproduce the old setting on purpose.")
     return len(shared)
+
+
+def check_bridge_pca(bridge, shared_ei_pca, joint_ei_pca):
+    """Validate pre-processing: an identity bridge requires a shared CLIP basis.
+
+    Shared PCA permits distinct E/I means but keeps the projection identical.
+    Joint PCA uses a single mean as well as a single projection.
+    """
+    if shared_ei_pca and joint_ei_pca:
+        raise ValueError("Choose only one of --shared-ei-pca or --joint-ei-pca")
+    if bridge == "identity" and not (shared_ei_pca or joint_ei_pca):
+        raise ValueError("--bridge identity requires --shared-ei-pca or --joint-ei-pca")
 
 
 def main():
@@ -91,7 +103,7 @@ def main():
     p.add_argument("--bridge", choices=("procrustes", "identity"), default="procrustes",
                    help="identity uses native CLIP coordinates; procrustes is legacy learned bridge")
     p.add_argument("--joint-ei-pca", action="store_true",
-                   help="recommended with CLIP: common mean and projection for E/I")
+                   help="one pooled mean and common projection for E/I (legacy CLIP ablation)")
     p.add_argument("--clusters", type=int, default=20)
     p.add_argument("--restarts", type=int, default=5)
     p.add_argument("--batch", type=int, default=256)
@@ -105,7 +117,7 @@ def main():
                    "source_pool=source pool and target paired mean; paired=both paired means")
     p.add_argument("--image-centering", choices=("bank", "english"), default="bank",
                    help="fixed image evaluation mean, identical across all methods")
-    p.add_argument("--shared-ei-pca", action="store_true", help="one PCA for E and I (use with --encoders clip features)")
+    p.add_argument("--shared-ei-pca", action="store_true", help="common projection but separate E and I training means; recommended for CLIP")
     a = p.parse_args()
     if (a.budget < 0 or a.dim < 1 or a.lambda_z < 0 or a.lambda_y < 0
             or a.ablation_lambda_z <= 0
@@ -120,9 +132,12 @@ def main():
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    # Same preprocessing and frozen image->English map as run.py.
-    if a.bridge == "identity" and not a.joint_ei_pca:
-        p.error("--bridge identity requires --joint-ei-pca (common CLIP coordinates)")
+    # With CLIP, preserve a COMMON projection while allowing either shared
+    # modality-specific means or the old joint mean. Identity means no V_IE fit.
+    try:
+        check_bridge_pca(a.bridge, a.shared_ei_pca, a.joint_ei_pca)
+    except ValueError as exc:
+        p.error(str(exc))
     pcas = fit_space_pcas(d, a.dim, a.whiten, a.shared_ei_pca, a.joint_ei_pca)
     z = {k: pcas[k[0]].transform(v) for k, v in d.items() if not k.endswith("_ids")}
     v = (np.eye(a.dim) if a.bridge == "identity"
@@ -225,7 +240,10 @@ def main():
             "std": float(np.std([r["metrics"][direction][k] for r in rows], ddof=1)) if len(rows) > 1 else None}
             for k in ["R@1", "R@5", "R@10"]} for direction in DIRECTIONS}
     report = {"config": vars(a), "rosetta_commit": ROSETTA_COMMIT, "clusters_used": clusters,
-              "bank_pool_overlap_ids": overlap, "summary": summary, "runs": results, "paired_bootstrap": comparisons}
+              "bank_pool_overlap_ids": overlap,
+              "pca_protocol": ("shared_separate_means" if a.shared_ei_pca else
+                               "joint_single_mean" if a.joint_ei_pca else "separate_pca"),
+              "summary": summary, "runs": results, "paired_bootstrap": comparisons}
     (out / "report.json").write_text(json.dumps(report, indent=2))
 
 
