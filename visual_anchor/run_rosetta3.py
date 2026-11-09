@@ -6,6 +6,8 @@ Methods (all share Rosetta's geometric initialization, readout, batch size and i
   bank_text   third pool = the English captions of the SAME bank images (content-matched, modality differs)
   extra_text  third pool = equally many captions of OTHER images (new content, text modality)
   gaussian    third pool = random Gaussian points (geometry-only control)
+  english_pool third pool = English Y itself, but independently resampled (matching/weight control)
+  anchor_downweight  no Z; scale paired term by 1/(1+lambda_z) during refinement
 
 The key comparison for H1 is visual vs bank_text. Anchor indices per seed are drawn exactly like run.py,
 so results pair row-by-row with the earlier NumPy prototype.
@@ -23,7 +25,8 @@ from rosetta3 import WassersteinProcrustes3
 from run import validate
 
 ROSETTA_COMMIT = "fdfad84ea488f29702a61a455be71622c4ff5d49"
-METHODS = ["rosetta", "visual", "bank_text", "extra_text", "gaussian"]
+METHODS = ["rosetta", "visual", "bank_text", "extra_text", "gaussian",
+           "english_pool", "anchor_downweight"]
 DIRECTIONS = {"L-E": ("l_test", "e_test"), "E-L": ("e_test", "l_test"),
               "L-I": ("l_img_test", "i_test"), "I-L": ("i_test", "l_img_test")}
 
@@ -33,8 +36,10 @@ def tensor(x):
 
 
 def third_pool(method, z, v, seed):
-    if method == "rosetta":
+    if method in {"rosetta", "anchor_downweight"}:
         return None
+    if method == "english_pool":
+        return z["e_pool"]
     if method == "visual":
         return z["i_bank"] @ v
     if method == "bank_text":
@@ -109,8 +114,10 @@ def main():
         py = tensor(z["e_pair"][idx]) if a.budget else None
         for method in a.methods:
             pool = third_pool(method, z, v, seed)
+            anchor_scale = 1.0 / (1.0 + a.lambda_z) if method == "anchor_downweight" else 1.0
             model = WassersteinProcrustes3(
-                lambda_z=0.0 if pool is None else a.lambda_z, init_cache=init_cache, num_clusters=clusters, num_restarts=a.restarts,
+                lambda_z=0.0 if pool is None else a.lambda_z,
+                anchor_scale=anchor_scale, init_cache=init_cache, num_clusters=clusters, num_restarts=a.restarts,
                 batch_size=a.batch, num_iterations=a.iterations, num_workers=a.workers, num_threads=1)
             model.fit(tensor(z["l_pool"]), tensor(z["e_pool"]), px, py, randomness=seed,
                       samples_z=None if pool is None else tensor(pool))
@@ -126,11 +133,14 @@ def main():
                 metrics[name], per_query[name] = m, h["R@1"]
             hits[(seed, method)] = per_query
             z_mean = float(np.mean(model.z_counts)) if model.z_counts else 0.0
-            results.append({"seed": seed, "method": method, "metrics": metrics, "mean_z_matches": z_mean})
+            results.append({"seed": seed, "method": method, "metrics": metrics,
+                            "mean_z_matches": z_mean, "anchor_scale": anchor_scale})
             np.savez(out / f"{method}_{seed}.npz", W=model.weight.numpy(), mean_x=model.mean_x.numpy(),
                      mean_y=model.mean_y.numpy(), V_IE=v, image_mean=image_mean.numpy(), anchor_indices=idx,
                      **({"mean_z": model.mean_z.numpy()} if model.mean_z is not None else {}))
-            print(f"budget={a.budget} seed={seed} method={method} lambda_z={0.0 if pool is None else a.lambda_z} metrics={metrics}", flush=True)
+            print(f"budget={a.budget} seed={seed} method={method} "
+                  f"lambda_z={0.0 if pool is None else a.lambda_z} "
+                  f"anchor_scale={anchor_scale:.4f} metrics={metrics}", flush=True)
 
     pairs = [(m, "rosetta") for m in a.methods if m != "rosetta"] + [("visual", "bank_text"), ("visual", "extra_text")]
     comparisons = []
