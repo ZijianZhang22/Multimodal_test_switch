@@ -11,6 +11,8 @@
 | bank_text | 同一批 bank 图像的英文描述 | 内容相同、模态不同；**H1 的关键对照** |
 | extra_text | 另外 500 张图的英文描述 | 衡量“多一批新文本”本身的作用 |
 | gaussian | 随机高斯点 | 只有几何、没有语义 |
+| english_pool | 复用英文 Y 池作为第三目标 | 不增加新内容，只增加一次独立抽样的匹配与权重 |
+| anchor_downweight | 无第三目标，仅降低平行句项 | 验证收益是否仅来自降低真实监督的相对权重 |
 
 每步 refinement：W = polar(X_mᵀY_m + λ·(k/k_z)·X_mzᵀZ_mz + (k/p)·锚点项)。第一项和最后一项与官方完全相同。
 v1 只在 refinement 加 Z；几何初始化与 readout 仍只用中文与英文。
@@ -58,3 +60,26 @@ bash run_rosetta3.sh
 - `lambda_z` 默认从 1.0 降至 **0.25**（Visual、Bank Text、Extra Text、Gaussian 使用同一系数，以确保公平）；`rosetta` 仍为 0。它仍会改变伪配对与监督锚点的相对权重，因此仍需 0.1/0.25/0.5/1.0 消融。
 - 本实验图像使用 bank 图像均值中心化，不可直接与原先使用 Rosetta 英文均值进行图像中心化的 baseline 指标作严格比较。
 - 官方 Rosetta 依赖 `pylibmgm`；默认 `run_rosetta3.sh` 训练成本比小规模 smoke 测试高。
+
+## 权重与重复英文池控制（独立实验分支）
+
+新增两组方法用于检验已观察到的约 1.3 pp 文本收益是否来源于语义内容：
+
+- `english_pool`：Z 直接设置为相同英文训练池 `e_pool`，Y 与 Z 内容完全相同但每个 refinement step **独立随机抽样并独立 Hungarian Matching**。因此同时改变总伪配对权重和匹配次数；并非只改变权重的完美控制。
+- `anchor_downweight`：不添加 Z，仍仅执行一轮 Y 匹配；只在 **refinement 阶段**将真实平行句的协方差项乘以 `anchor_scale = 1/(1+lambda_z)`。初始 geometric initialization/readout 仍为原版。对于默认 `lambda_z=0.25`，对应 `anchor_scale=0.8`（不是减半）。
+- `rosetta`：保持原始路径（`anchor_scale=1`, `lambda_z=0`）。
+
+相同 budget、seed、参数，快速比较两个控制和视觉/英文文本目标：
+
+```bash
+python -m unittest -v test_rosetta3
+python run_rosetta3.py --data real_work/features.npz --budget 50 \\
+  --seeds 0 1 2 --dim 32 --clusters 20 --restarts 5 --batch 256 \\
+  --iterations 20 --lambda-z 0.25 \\
+  --methods rosetta visual bank_text extra_text gaussian english_pool anchor_downweight \\
+  --out real_work/rosetta3_weight_controls_50
+```
+
+其他预算可改为 `--budget 200`、`--budget 1000`，并使用不同输出文件夹。所有实验使用相同 50/200/1000 监督锚点的选择方式。
+
+当前测试集中逐样本命中结果的 paired bootstrap 比单纯把 3 个 seeds 平均更有解释力；`report.json` 中的 `paired_bootstrap` 包含每个 seed 的 R@1 对照及置信区间。注意不同 seed 共享评测问题，不能把三个 seed 当作三批完全独立测试集。
