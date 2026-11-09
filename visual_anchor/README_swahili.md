@@ -32,3 +32,23 @@ If source English captions do not exactly match the SwaFlickr8k caption text, th
 - Swahili: compare original Rosetta vs Visual vs Bank Text vs Extra Text vs Gaussian vs English Pool vs Anchor Downweight with matched seeds and caption banks.
 - Focus particularly on Visual minus Bank Text for 10/25/50 anchors.
 - No claim of significant improvement without paired per-image confidence intervals and an audit of caption translation quality.
+
+## Missing image ID fix (SwaFlickr8k subset)
+
+Some Flickr8K-CN IDs are absent from `captions_sw.csv`, or have no exact English caption match. The preparation script now performs an audited dataset intersection instead of crashing on the first unavailable image:
+
+- Removes missing/unmatched IDs consistently across each shared train/test group.
+- Refills missing supervision anchors **only** from the original bridge group with verified exact English-caption match, and removes each moved ID from both bridge modalities and the English OT pool. This preserves the 1,000-anchor budget if sufficient verified bridge IDs remain, but changes the training/bridge split and should be reported.
+- Keeps original test IDs in their original order **when available**, but removes unmatched tests. Hence test size can become smaller than 1,000; comparison against the Chinese test numbers is not a paired apples-to-apples evaluation. Do not claim that it is.
+- Writes all excluded IDs and replacements into `features_sw.manifest.json`, as well as reporting new test count at preparation time.
+- If the remaining verified bridge pool cannot provide enough anchor replacements, the script raises an explicit error rather than fabricating translated labels.
+
+Rebuild Swahili features after updating this branch (original features untouched):
+
+```bash
+rm -f real_work/features_sw.npz
+python -m unittest -v test_swahili
+bash run_swahili_rosetta3.sh
+```
+
+For a strict apples-to-apples Chinese-vs-Swahili evaluation, rerun the **Chinese** experiments on the repaired Swahili intersection IDs too. Within-Swahili ablations remain comparable because all seven methods use the same repaired splits.
