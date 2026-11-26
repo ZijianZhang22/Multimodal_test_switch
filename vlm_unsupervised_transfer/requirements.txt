@@ -1,0 +1,11 @@
+# Matches paligemma2_cross_lingual_steering/tested 2026 environment.
+torch>=2.4
+transformers==4.51.3
+accelerate>=1.0,<2
+numpy>=1.26,<3
+scipy>=1.12,<2
+pillow>=10
+protobuf>=4
+sentencepiece>=0.2
+datasets>=3.3,<5
+huggingface_hub>=0.30,<1
