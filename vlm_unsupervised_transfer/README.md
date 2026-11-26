@@ -40,6 +40,32 @@ OT only matches distributions, not semantics. The learned map may match wrong co
 - `summarize.py`: paired bootstrap **by image/question ID** across fixed model predictions.
 - `tests/`: CPU tests with synthetic embeddings, no PaliGemma2 download.
 
+## Run direction A only first (no B)
+
+Use `ARM=a` to run **only A's direct alignment maps** (`mean_shift`,
+`text_ot`, `text_visual_ot`, `text_noise_ot`) plus the optional paired
+Oracle diagnostic. B's confidence/visual/constant gate search and B-specific tests are skipped.
+The A-only shuffled-image diagnostic can still run with `RUN_STRESS=1`. Choose a fresh `OUT`
+when switching from `ARM=all` to `ARM=a` because the settings and selection
+protocol differ. `RUN_TEST=0` keeps the first pass validation-only; after
+inspecting validation, rerun with `RUN_TEST=1` and the *exact same configuration*
+to evaluate the locked holdout once.
+
+```bash
+cd /workspace/Multimodal_test_switch
+git fetch origin && git switch experiment/vlm-unsupervised-a-b && git pull
+ARM=a LANGUAGE=zh LAYERS=8,13,18 \
+  N_SOURCE=256 N_ENGLISH=256 N_VISUAL=256 \
+  RUN_ORACLE=1 RUN_STRESS=0 RUN_TEST=0 \
+  OUT=/workspace/vlm_A_zh_seed42 \
+  bash vlm_unsupervised_transfer/run_runpod.sh
+```
+
+To evaluate the fixed test after validating the run, use the same command
+with `RUN_TEST=1` (and `INSTALL=0` if dependencies are installed). Re-running
+cached extraction and fitting is idempotent but still takes resources to load
+activations; do not modify seed, image pools, layer grid, or strength grid.
+
 ## GPU run in RunPod (one command)
 
 **Hardware:** An A100 80GB is recommended for all-layer repeated 448px prefill; smaller cards might work but OOM has not been checked. Model may require HF license approval and `hf auth login`. Existing repo branch includes the previously built `paligemma2_cross_lingual_steering`, `visual_anchor`, `vlm_layer_alignment` folders; none is changed by this package.

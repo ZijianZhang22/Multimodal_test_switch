@@ -20,6 +20,15 @@ class ExperimentalTests(unittest.TestCase):
         self.y=self.rng.normal(size=(45,20))
         self.z=self.rng.normal(size=(43,20))
 
+    def test_a_only_filters_b_methods(self):
+        from experiment import selected_for_arm
+        selected={'A/mean_shift':{'method':'mean_shift'},
+                  'A/text_ot':{'method':'text_ot'},
+                  'B/text_ot/confidence':{'method':'text_ot'}}
+        self.assertEqual(set(selected_for_arm(selected,'a')), {'A/mean_shift','A/text_ot'})
+        self.assertEqual(set(selected_for_arm(selected,'all')), set(selected))
+        with self.assertRaises(ValueError): selected_for_arm(selected,'invalid')
+
     def test_image_disjoint(self):
         d=disjoint_groups(map(str,range(100)),20,25,30,9)
         self.assertFalse(set(d['source'])&set(d['english']))

@@ -29,6 +29,7 @@ def find_swaps(rows,seed):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--out',required=True)
+    p.add_argument('--arm',choices=('a','all'),default='all')
     p.add_argument('--pools',required=True)
     p.add_argument('--val',required=True)
     p.add_argument('--language',default='zh')
@@ -43,8 +44,9 @@ def main():
     picks={
         'original':None,
         'A_text_visual_ot':selected['A/text_visual_ot'],
-        'B_visual_gate':selected['B/text_visual_ot/confidence_visual'],
     }
+    if a.arm=='all':
+        picks['B_visual_gate']=selected['B/text_visual_ot/confidence_visual']
     swaps=find_swaps(rows,a.seed)
     proc,model=load_model(a.model)
     result={}

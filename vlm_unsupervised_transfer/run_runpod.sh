@@ -15,6 +15,8 @@ assert transformers.__version__=='4.51.3',transformers.__version__
 assert torch.cuda.is_available(), 'CUDA GPU required to run PaliGemma2'
 print('CUDA:',torch.cuda.get_device_name(0),'transformers',transformers.__version__,flush=True)
 PY
+ARM="${ARM:-all}"
+if [[ "$ARM" != a && "$ARM" != all ]]; then echo "ARM must be a or all" >&2; exit 2; fi
 LANGUAGE="${LANGUAGE:-zh}"
 SEED="${SEED:-42}"
 OUT="${OUT:-$HERE/outputs/${LANGUAGE}_seed${SEED}}"
@@ -49,7 +51,7 @@ if [[ ! -s "$EVAL/manifest.json" ]]; then
     fi
 fi
 base=(--pools "$POOLS" --val "$EVAL/val.jsonl" --test "$EVAL/test.jsonl" \
-      --out "$EXPERIMENT" --language "$LANGUAGE" --layers "$LAYERS" \
+      --out "$EXPERIMENT" --language "$LANGUAGE" --layers "$LAYERS" --arm "$ARM" \
       --model "$MODEL" --dim "$DIM" --seed "$SEED" --strengths "$STRENGTHS" \
       --oracle-strengths "$ORACLE_STRENGTHS" --iterations "${ITERATIONS:-30}" \
       --batch "${BATCH:-128}" --visual-weight "${VISUAL_WEIGHT:-0.25}" \
@@ -65,7 +67,7 @@ if [[ "${RUN_TEST:-1}" == 1 ]]; then
 fi
 if [[ "${RUN_STRESS:-1}" == 1 ]]; then
     "$PY" -u stress_visual.py --out "$EXPERIMENT" --pools "$POOLS" \
-      --val "$EVAL/val.jsonl" --language "$LANGUAGE" --model "$MODEL" \
+      --val "$EVAL/val.jsonl" --language "$LANGUAGE" --model "$MODEL" --arm "$ARM" \
       --seed "$SEED" --max-relative-norm "${NORM_CAP:-0.15}" \
       --max-tokens "${MAX_TOKENS:-8}"
 fi

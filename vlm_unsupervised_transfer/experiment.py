@@ -252,6 +252,18 @@ def validate(args,rows,model,proc):
         candidates=[r for r in scores if r['method']==method and r['mode']=='direct']
         chosen=sorted(candidates,key=lambda x:(-x['accuracy'],-x['valid_rate'],x['strength'],x['layer']))[0]
         selected[f'A/{method}']=chosen
+    # A-only mode: do not run B's confidence/visual/constant gate search.
+    # Direct alignment is reported only once, under the A/ prefix.
+    if args.arm == 'all':
+        select_b_gates(args, scores, selected, rows, model, proc)
+    report=dict(validation_base=baseline,english_reference=en,grid=scores,selected=selected,
+                keys='A map/layer selected on validation; optional B gates use the same validation; no test tuning')
+    path=Path(args.out)/'selection_val.json'
+    path.write_text(json.dumps(report,indent=2))
+    print('Selection saved',path,flush=True)
+
+
+def select_b_gates(args,scores,selected,rows,model,proc):
     # B uses the A-selected map/layer. Select gates independently on val.
     # No duplicate B 'dynamic' arm: ungated h+alpha(T(h)-h) IS A direct.
     for method in ('text_ot','text_visual_ot'):
@@ -266,11 +278,15 @@ def validate(args,rows,model,proc):
                 scores.append(rec);candidates.append(rec)
                 print('VALIDATE B',tag,stats['accuracy'],flush=True)
             selected[f'B/{method}/{mode}']=sorted(candidates,key=lambda x:(-x['accuracy'],-x['valid_rate'],x['strength']))[0]
-    report=dict(validation_base=baseline,english_reference=en,grid=scores,selected=selected,
-                keys='A map/layer selected on validation, B gate/strength selected afterwards on same validation; no test tuning')
-    path=Path(args.out)/'selection_val.json'
-    path.write_text(json.dumps(report,indent=2))
-    print('Selection saved',path,flush=True)
+
+def selected_for_arm(selected,arm):
+    if arm not in ('a','all'):
+        raise ValueError(f'Unexpected arm={arm}')
+    result={key:value for key,value in selected.items() if arm=='all' or key.startswith('A/')}
+    if not result or (arm=='a' and not all(key.startswith('A/') for key in result)):
+        raise ValueError('No valid A method selected')
+    return result
+
 
 def run_test(args,rows,model,proc):
     selection_path=Path(args.out)/'selection_val.json'
@@ -279,7 +295,7 @@ def run_test(args,rows,model,proc):
     baseline=evaluate_rows(args,rows,model,proc,args.language,'test_baseline_'+args.language)
     en=evaluate_rows(args,rows,model,proc,'en','test_baseline_en')
     test=[]
-    for name,choice in report['selected'].items():
+    for name,choice in selected_for_arm(report['selected'],args.arm).items():
         if choice['layer'] not in args.layers or choice['method'] not in METHODS or choice['mode'] not in MODES:
             raise ValueError('Selected method/grid not available')
         op=load_operator(args,choice['layer'],choice['method'],choice['mode'],choice['strength'],model)
@@ -295,6 +311,7 @@ def run_test(args,rows,model,proc):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--stage',choices=('extract','fit','oracle','validate','test'),required=True)
+    p.add_argument('--arm',choices=('a','all'),default='all',help='a: run direction A only; all: A plus B')
     p.add_argument('--pools',default='outputs/flickr_zh')
     p.add_argument('--val',default='outputs/cvbench/val.jsonl')
     p.add_argument('--test',default='outputs/cvbench/test.jsonl')
