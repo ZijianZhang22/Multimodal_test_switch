@@ -157,3 +157,8 @@ For the fixed **Chinese baseline vs Text+Visual OT** 1,500-question extension, s
 ## Large fixed Visual OT vs Chinese baseline (1500-question evaluation)
 
 See [README_VISUAL_LARGE.md](README_VISUAL_LARGE.md). This is the expanded evaluation only (no fitting), and it includes checkpoint recovery, actual-image SHA verification, separate curated/MT reporting, and image-cluster-aware inference. The new NLLB translations need language-quality review before scientific interpretation.
+
+
+## Bilingual MMBench A tuning + independent local held-out test
+
+Use [README_MMBENCH_A.md](README_MMBENCH_A.md). This script uses official MMBench Dev EN/CN paired questions, tunes frozen Visual OT and Text OT maps on an image-disjoint local tune split, then evaluates unchanged Chinese baseline, English reference, Visual OT and Text OT on a disjoint local test split. This is not an official benchmark Test or leaderboard result.
