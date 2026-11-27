@@ -69,10 +69,10 @@ if (( ${#missing[@]} > 0 )); then
   fi
   echo "Bootstrapping CLIP features + ${BUDGET}-pair Rosetta3 maps (seed=${MAP_SEED}, dim=${DIM}, PCA=${PCA_MODE})."
   echo "This downloads Flickr8K/encoders if absent and FITS maps. Source code alone does not contain those files."
-  env WORK_DIR="$WORK" BUDGETS="$BUDGET" SEEDS="$MAP_SEED" \\
-      METHODS="${MAP_ARMS[*]}" DIM="$DIM" PCA_MODE="$PCA_MODE" \\
-      ANCHOR_CENTERING="$ANCHOR_CENTERING" IMAGE_CENTERING="$IMAGE_CENTERING" \\
-      DEVICE="${CLIP_DEVICE:-cuda}" \\
+  env WORK_DIR="$WORK" BUDGETS="$BUDGET" SEEDS="$MAP_SEED" \
+      METHODS="${MAP_ARMS[*]}" DIM="$DIM" PCA_MODE="$PCA_MODE" \
+      ANCHOR_CENTERING="$ANCHOR_CENTERING" IMAGE_CENTERING="$IMAGE_CENTERING" \
+      DEVICE="${CLIP_DEVICE:-cuda}" \
       bash "$ROOT/visual_anchor/run_clip_native.sh"
   for item in "${required[@]}"; do
     if [[ ! -s "$item" ]]; then
