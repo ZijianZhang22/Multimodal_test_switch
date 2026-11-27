@@ -147,3 +147,13 @@ outputs/zh_seed42/
 - Dumas et al., *Separating Tongue from Thought*, ACL 2025: https://aclanthology.org/2025.acl-long.1536/ . Text-only activation patching supports testing language-specific vs conceptual layers, but does not establish optimal PaliGemma2 layers.
 - Hugging Face transformers v4.51.3 PaliGemma documentation: https://huggingface.co/docs/transformers/v4.51.3/en/model_doc/paligemma
 - MUSE (Conneau et al.), *Word Translation Without Parallel Data*: https://arxiv.org/abs/1710.04087 . Inspired unpaired distribution-matching, not byte-identical implementation.
+
+
+## Larger A-only final comparison
+
+For the fixed **Chinese baseline vs Text+Visual OT** 1,500-question extension, see [README_VISUAL_LARGE.md](README_VISUAL_LARGE.md). This expands the original 600-item local CV-Bench test with approximately 900 separately labeled machine-translated questions, and runs only the previously selected visual-assisted map.
+
+
+## Large fixed Visual OT vs Chinese baseline (1500-question evaluation)
+
+See [README_VISUAL_LARGE.md](README_VISUAL_LARGE.md). This is the expanded evaluation only (no fitting), and it includes checkpoint recovery, actual-image SHA verification, separate curated/MT reporting, and image-cluster-aware inference. The new NLLB translations need language-quality review before scientific interpretation.
