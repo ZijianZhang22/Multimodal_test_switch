@@ -15,6 +15,9 @@ import json
 import os
 import sys
 import urllib.request
+import urllib.error
+import http.client
+import time
 from pathlib import Path
 
 import numpy as np
@@ -35,28 +38,75 @@ METHODS = ("pairs_only", "text_only", "joint", "image_only", "caption_only",
 
 
 def download_cifar(path):
+    """Verified official CIFAR archive; interruptions keep a resumable .partial."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
+    if path.is_file():
         if md5_file(path) != CIFAR10_MD5:
             raise ValueError(f"Existing CIFAR-10 file has wrong MD5: {path}")
+        print("Reusing verified CIFAR-10 archive:", path, flush=True)
         return
-    tmp = path.with_name(path.name + '.partial')
-    if tmp.exists():
-        tmp.unlink()
-    print(f"Downloading official CIFAR-10 binary test archive (~162 MiB): {CIFAR10_URL}", flush=True)
-    try:
-        req = urllib.request.Request(CIFAR10_URL, headers={"User-Agent": "Rosetta3-Transfer-Research/1.0"})
-        with urllib.request.urlopen(req, timeout=120) as source, tmp.open('wb') as f:
-            while chunk := source.read(1024 * 1024):
-                f.write(chunk)
-        if md5_file(tmp) != CIFAR10_MD5:
-            raise ValueError("CIFAR-10 download failed the official MD5 checksum")
-        tmp.replace(path)
-    finally:
-        if tmp.exists():
-            tmp.unlink()
 
+    tmp = path.with_name(path.name + ".partial")
+    if tmp.is_file() and md5_file(tmp) == CIFAR10_MD5:
+        tmp.replace(path)
+        print("Completed previous CIFAR-10 download:", path, flush=True)
+        return
+
+    print(f"Downloading official CIFAR-10 archive (~162 MiB): {CIFAR10_URL}", flush=True)
+    for attempt in range(1, 7):
+        start = tmp.stat().st_size if tmp.is_file() else 0
+        req = urllib.request.Request(
+            CIFAR10_URL, headers={"User-Agent": "Rosetta3-Transfer-Research/1.0"})
+        if start:
+            req.add_header("Range", f"bytes={start}-")
+            print(f"Resuming CIFAR-10 from {start / 1048576:.1f} MiB...", flush=True)
+        try:
+            with urllib.request.urlopen(req, timeout=60) as source:
+                status = source.getcode()
+                if start and status == 206:
+                    content_range = source.headers.get("Content-Range", "")
+                    if not content_range.startswith(f"bytes {start}-"):
+                        raise ValueError(
+                            f"Server returned a mismatched byte range: {content_range}")
+                    mode = "ab"
+                elif status == 200:
+                    if start:
+                        print("Server does not support resume; restarting download.", flush=True)
+                    mode = "wb"
+                else:
+                    raise ValueError(f"Unexpected HTTP status for CIFAR archive: {status}")
+                written = start if mode == "ab" else 0
+                last_reported = written // (16 * 1048576)
+                with tmp.open(mode) as f:
+                    while chunk := source.read(1024 * 1024):
+                        f.write(chunk)
+                        written += len(chunk)
+                        now = written // (16 * 1048576)
+                        if now > last_reported:
+                            print(f"CIFAR-10 downloaded: {written / 1048576:.1f} MiB",
+                                  flush=True)
+                            last_reported = now
+            if md5_file(tmp) != CIFAR10_MD5:
+                raise ValueError(
+                    f"CIFAR-10 archive MD5 mismatch: {tmp}. "
+                    "Delete this .partial file to retry from zero.")
+            tmp.replace(path)
+            print("CIFAR-10 verified:", path, flush=True)
+            return
+        except (urllib.error.URLError, TimeoutError, OSError, http.client.IncompleteRead) as exc:
+            if attempt == 6:
+                raise RuntimeError(
+                    f"CIFAR-10 download failed after {attempt} attempts; "
+                    f"partial bytes retained at {tmp}") from exc
+            print(f"Download interrupted ({type(exc).__name__}); retry "
+                  f"{attempt}/6, keeping .partial...", flush=True)
+            time.sleep(min(2 * attempt, 10))
+        except KeyboardInterrupt:
+            retained = tmp.stat().st_size if tmp.is_file() else 0
+            print(f"\nDownload paused. Saved {retained / 1048576:.1f} MiB at {tmp}. "
+                  "Rerun the same command to resume.", flush=True)
+            raise
 
 def load_original_assets(args):
     report_file = args.map_dir / 'report.json'
