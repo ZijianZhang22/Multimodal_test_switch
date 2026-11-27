@@ -54,7 +54,7 @@ for item in "${required[@]}"; do
 done
 if (( ${#missing[@]} > 0 )); then
   echo "Missing previously trained CLIP/Rosetta assets on this Pod:"
-  printf '  %s\\n' "${missing[@]}"
+  printf '  %s\n' "${missing[@]}"
   if [[ "$AUTO_BOOTSTRAP" != "1" ]]; then
     echo "Set AUTO_BOOTSTRAP=1 (default), or provide the existing CLIP_WORK / MAP_DIR." >&2
     exit 2
